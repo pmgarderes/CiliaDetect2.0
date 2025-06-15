@@ -1,0 +1,22 @@
+# Ignore temporary MATLAB files
+*.asv
+*.autosave
+
+# Ignore data files
+*.mat
+*.nd2
+*.csv
+
+# Ignore the folder 'ignored'
+ignored/
+
+# Ignore the TODO list (optional if personal)
+TODO.md
+
+# Ignore the TODO list (optional if personal)
+Git_Instruct.txt
+
+
+# Ignore common OS junk files
+.DS_Store
+Thumbs.db

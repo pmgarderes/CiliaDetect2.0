@@ -1,0 +1,24 @@
+# Auto-normalize text files (handle line endings properly)
+* text=auto
+
+# Force specific types to be treated as text
+*.m text
+*.md text
+*.txt text
+*.csv text
+*.yaml text
+*.yml text
+
+# Treat images and binaries correctly (don't touch line endings)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.tif binary
+*.tiff binary
+*.mat binary
+*.nd2 binary
+
+# Optional: treat Excel files as binary
+*.xlsx binary
+*.xls binary
