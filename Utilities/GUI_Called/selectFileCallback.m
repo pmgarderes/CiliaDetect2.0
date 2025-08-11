@@ -25,6 +25,8 @@ handles.currentZ = 1;
 handles.filePath = filePath;
 handles.fileName = fileName; 
 
+handles.LW_by_channel = nan(handles.numChannels,2);  % [L W] per channel
+
 % autmatically load cilias
 
 fullFileName = fullfile(handles.filePath, handles.fileName);
@@ -34,15 +36,32 @@ fullFileName = fullfile(handles.filePath, handles.fileName);
 saveFileName = [baseName '_cilia_detections.mat'];
 savePath = fullfile([nd2Dir, filesep 'MatlabQuantif' filesep  saveFileName]);
 % Call the external function to LOAD detections
-load(savePath,'ciliaDetections');  
-handles.ciliaDetections = ciliaDetections;
+if exist(savePath)
+    load(savePath,'ciliaDetections');  
+    handles.ciliaDetections = ciliaDetections;
+end
 
 % Update the handles structure
 guidata(hObject, handles);
 
-% Refresh the display or perform additional updates as needed
-updateDisplay(hObject);
 
+% Refresh the display or perform additional updates as needed
+[clim] = updateDisplay(hObject);
+handles.clim = clim;
+handles.windowLevel = mean([clim(1) clim(2)]);
+handles.windowWidth = clim(2) - clim(1);
+
+
+msg = sprintf('WAIT, Currently redrawing cilia detections .');  % or any dynamic message
+set(handles.status, 'String', msg);
+drawnow;  % forces immediate GUI update
+
+handles = redrawAllDetections(handles);
+guidata(hObject, handles);
+updateCiliaCount(hObject);
+msg = sprintf('All cilia detections have been redrawn.');  % or any dynamic message
+set(handles.status, 'String', msg);
+drawnow;  % forces immediate GUI update
 
 
 

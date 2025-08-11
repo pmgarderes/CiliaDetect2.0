@@ -22,6 +22,7 @@ params.maxroiOverlap = 0.8; % DO NOT CHANGE 0.5 is 50% roi overlap ; above this 
 
 % Spread for background mask dilation ( in pixel)
 params.backgroundSpread = 10;        % Spread for background mask dilation
+params.backgroundPadding = 2;
 
 % Parameters for aumated detection 
 params.tophatRadius = 5;
@@ -29,7 +30,8 @@ params.maxEccentricity = 1;
 params.minEccentricity = 0.8;
 
 % parameter quantificaiton
-params.fluorescenceMode ='sum' ;  %  'mean' or 'sum'
+params.fluorescenceMode ='sum' ;  %  'mean' or 'sum' 'Narrowsum' or 'Volume'
+params.QuantificationDepth ='SubStack' ;  %  'FullStack' or 'SubStack' or 'Volume'
 stack= {ones(1,1,1)};
 uniqueDetections= [] ;
 
@@ -61,7 +63,7 @@ handles.ax = ax;
 ciliaDetections = uniqueDetections;
 
 %% Define control buttons
-% Set working folder and
+% Set working folder and select file
 selectFileBtn = uicontrol('Style', 'pushbutton', ...
     'String', 'Select File', ...
     'Units', 'normalized', ...
@@ -102,33 +104,51 @@ uicontrol('Style', 'pushbutton', ...
           'Position', [0.85, 0.4, 0.1, 0.05], ...  % Adjust position as needed
           'Callback', @autoDetectSeedsCallback);
       
+ % dipslay interacting text
+handles.status = uicontrol('Style','text', ...
+  'Units','normalized', ...
+  'Position',[0.01, 0.95, 0.3, 0.04], ...
+  'BackgroundColor','k', ...
+  'ForegroundColor','w', ...
+  'FontSize',12, ...
+  'HorizontalAlignment','left', ...
+  'String','');  % start empty     
       
 handles.EditParams =uicontrol('Style', 'pushbutton', ...
           'String', 'Edit Parameters', ...
           'Units', 'normalized', ...
-          'Position', [0.01, 0.05, 0.2, 0.05], ...
+          'Position', [0.85, 0.05, 0.12, 0.05], ...
           'Callback', @(hObject, event) editParamsCallback(hObject)); % 'Callback', @(hObject, ~) editParamsCallback(hObject); %
       
 handles.clearButton = uicontrol('Style', 'pushbutton', ...
     'String', 'Clear Detections', ...
     'Units', 'normalized', ...
-    'Position', [0.01, 0.15, 0.2, 0.05], ... % Adjust position and size as needed
+    'Position', [0.85, 0.15, 0.12, 0.05], ... % Adjust position and size as needed
     'Callback', @(hObject, ~) clearDetectionsCallback(hObject));
 
 %% Add the shortcut instruction on the left
 shortcutText = [ ...
     'Keyboard Shortcuts:', newline, ...
     '--------------------------', newline, ...
-    '[Space]   - Add cilium at mouse click', newline, ...
-    '[→ / ←]   - Switch channel', newline, ...
-    '[↑ / ↓]   - Navigate Z-slices', newline, ...
-    '[+ / -]   - Adjust sensitivity', newline, ...
-    '[u]       - Undo last detection', newline, ...
-    '[s]       - Suppress nearest ROI', newline, ...
-    '[m]       - Merge two nearest ROIs', newline, ...
-    '[r]       - Redraw all ROIs', newline, ...
-    '[q]       - Quit application' ...
+    'ROI actions:', newline, ...
+    '[Space]        - Add cilium at mouse click', newline, ...
+    '[u]            - Undo last detection', newline, ...
+    '[s]            - Suppress nearest ROI', newline, ...
+    '[m]            - Merge two nearest ROIs', newline, ...
+    '[r]            - Redraw all ROIs', newline, ...
+    newline, ...
+    'Navigation:', newline, ...
+    '[→ / ←]        - Switch channel', newline, ...
+    '[↑ / ↓]        - Navigate Z-slices', newline, ...
+    newline, ...
+    'Display adjustments:', newline, ...
+    '[+ / -]        - Brightness up / down', newline, ...
+    '[* / /]        - Increase / decrease contrast (numpad)', newline, ...
+     newline, ...
+    'Other:', newline, ...
+    '[q]            - Quit application' ...
     ];
+
 shortcutPanel = uicontrol('Style', 'text', ...
     'String', shortcutText, ...
     'Units', 'normalized', ...
@@ -143,18 +163,16 @@ imgHandle = imagesc(stack{currentChannel}(:,:,currentZ), 'Parent', ax);
 colormap('gray');
 axis image off;
 
-title(ax, sprintf('Channel %d | Z-plane %d/%d', ...
-    currentChannel, currentZ, numSlices), ...
-    'Color', 'w', 'FontSize', 18);
+
 
 % Create a text label for the cilia count
 handles.countLabel = uicontrol('Style', 'text', ...
     'String', 'Cilia Count: 0', ...
     'Units', 'normalized', ...
-    'Position', [0.01, 0.2, 0.2, 0.4], ...
+    'Position', [0.01, 0.3, 0.2, 0.1], ...
     'BackgroundColor', 'k', ...
     'ForegroundColor', 'w', ...
-    'FontSize', 12, ...
+    'FontSize', 16, ...
     'HorizontalAlignment', 'left');
 
 % Create axes and image display
@@ -162,6 +180,19 @@ handles.ax = axes('Parent', fig);
 handles.imgHandle = imagesc(stack{currentChannel}(:,:,currentZ), 'Parent', handles.ax);
 colormap('gray');
 axis image off;
+
+% % % Compute a robust initial window from percentiles
+% % I = double(get(handles.imgHandle,'CData'));
+% % lo = 0;% prctile(I(:),1);  
+% % hi = 0; % prctile(I(:),99);
+% % % Apply and freeze CLim (manual) so changing CData doesn't auto-rescale
+% % caxis(handles.ax, [lo hi]);             % R2022a+; use caxis(handles.ax,[lo hi]) on older releases
+% % set(handles.ax, 'CLimMode', 'manual');
+% % % Store window/level in handles
+% % handles.windowLevel = mean([lo hi]);   % brightness center
+% % handles.windowWidth = max(hi-lo, eps); % contrast width; avoid 0
+handles.wStepFrac  = 0.05;             % 5% step per key press (tweak to taste)
+handles.clim = [0 0];
 
 % Store other relevant data
 handles.stack = stack;
@@ -182,29 +213,90 @@ guidata(fig, handles);
         handles = guidata(hObject);  % Retrieve the handles structure
        params = handles.params;
         switch event.Key
-            case 'add'  % '+' key on main keyboard
-                handles.adaptiveSensitivity = min(handles.adaptiveSensitivity + 0.05, 1.0);
-                fprintf('Increased sensitivity: %.2f\n', handles.adaptiveSensitivity);
-            case 'subtract'  % '-' key on main keyboard
-                handles.adaptiveSensitivity = max(handles.adaptiveSensitivity - 0.05, 0.05);
-                fprintf('Decreased sensitivity: %.2f\n', handles.adaptiveSensitivity);
+%             case 'add'  % '+' key on main keyboard
+%                 handles.adaptiveSensitivity = min(handles.adaptiveSensitivity + 0.05, 1.0);
+%                 fprintf('Increased sensitivity: %.2f\n', handles.adaptiveSensitivity);
+%             case 'subtract'  % '-' key on main keyboard
+%                 handles.adaptiveSensitivity = max(handles.adaptiveSensitivity - 0.05, 0.05);
+%                 fprintf('Decreased sensitivity: %.2f\n', handles.adaptiveSensitivity);
+            % ---------- Brightness (window LEVEL) ----------
+            case 'add'        % '+' -> brighter
+                handles.windowLevel = handles.windowLevel - handles.wStepFrac * handles.windowWidth;
+                applyWindowLevel(handles);
+                handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
+            case 'subtract'   % '-'  -> darker
+                handles.windowLevel = handles.windowLevel + handles.wStepFrac * handles.windowWidth;
+                applyWindowLevel(handles);
+                handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
+            % ---------- Contrast  (window LEVEL) ----------
+            case 'multiply'   % ']' -> increase contrast (narrower window)
+                handles.windowWidth = handles.windowWidth * (1 - handles.wStepFrac);
+                applyWindowLevel(handles);
+                handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
+            case 'divide'    % '[' -> decrease contrast (wider window)
+                handles.windowWidth = handles.windowWidth * (1 + handles.wStepFrac);
+                applyWindowLevel(handles);
+                disp(handles.windowWidth)%
+                handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
             case 'rightarrow'
+                % save current channel's L/W before leaving
+                handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
+
                 handles.currentChannel = mod(handles.currentChannel, handles.numChannels) + 1;
+
+                % load slice
+                img = handles.stack{handles.currentChannel}(:,:,handles.currentZ);
+                set(handles.imgHandle,'CData',img);
+
+                % restore L/W if known, else initialize from robust stretch once
+                LW = handles.LW_by_channel(handles.currentChannel,:);
+                if all(isfinite(LW))
+                    handles.windowLevel = LW(1);
+                    handles.windowWidth = LW(2);
+                else
+                    I = double(img);
+                    lo = prctile(I(:),1); hi = prctile(I(:),99);
+                    handles.windowLevel = (lo+hi)/2;
+                    handles.windowWidth = max(hi-lo, eps);
+                    handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
+                end
+                applyLW(handles);
                 guidata(hObject, handles);
-                updateDisplay(hObject);
-                disp(handles.currentChannel);
+
             case 'leftarrow'
+                handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
                 handles.currentChannel = mod(handles.currentChannel - 2, handles.numChannels) + 1;
+
+                img = handles.stack{handles.currentChannel}(:,:,handles.currentZ);
+                set(handles.imgHandle,'CData',img);
+
+                LW = handles.LW_by_channel(handles.currentChannel,:);
+                if all(isfinite(LW))
+                    handles.windowLevel = LW(1);
+                    handles.windowWidth = LW(2);
+                else
+                    I = double(img);
+                    lo = prctile(I(:),1); hi = prctile(I(:),99);
+                    handles.windowLevel = (lo+hi)/2;
+                    handles.windowWidth = max(hi-lo, eps);
+                    handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
+                end
+                applyLW(handles);
                 guidata(hObject, handles);
-                updateDisplay(hObject);
             case 'uparrow'
                 handles.currentZ = min(handles.currentZ + 1, handles.numSlices);
+                % just swap the slice, keep same window
+                img = handles.stack{handles.currentChannel}(:,:,handles.currentZ);
+                set(handles.imgHandle,'CData',img);
+                applyLW(handles);   % same L/W across planes
                 guidata(hObject, handles);
-                updateDisplay(hObject);
+
             case 'downarrow'
                 handles.currentZ = max(handles.currentZ - 1, 1);
+                img = handles.stack{handles.currentChannel}(:,:,handles.currentZ);
+                set(handles.imgHandle,'CData',img);
+                applyLW(handles);
                 guidata(hObject, handles);
-                updateDisplay(hObject);
             case 'u'  % Undo last detection
                 if ~isempty(handles.ciliaDetections)
                     % Remove detection
@@ -279,10 +371,12 @@ guidata(fig, handles);
                 [selectedIdx, minDistance] = findNearestROI(xClick, yClick, handles.ciliaDetections);
                 
                 if isempty(selectedIdx) || minDistance > 20
-                    disp('No ROI close enough to be selected.');
+                    msg = sprintf('No ROI close enough to be selected.'); 
+                    set(handles.status, 'String', msg);
+                    drawnow;  % forces immediate GUI update
                 else
-                    fprintf('Suppressing ROI #%d (%.2f pixels away)\n', selectedIdx, minDistance);
-                    
+%                     fprintf('Suppressing ROI #%d (%.2f pixels away)\n', selectedIdx, minDistance);
+                    msg = sprintf('Suppressing ROI #%d (%.2f pixels away)\n', selectedIdx, minDistance);      set(handles.status, 'String', msg);   drawnow;  % forces immediate GUI update
                     % Delete ROI graphics
                     if ~isempty(handles.roiHandles{selectedIdx})
                         for h = handles.roiHandles{selectedIdx}
@@ -295,47 +389,28 @@ guidata(fig, handles);
                     % Remove from detections
                     handles.ciliaDetections(selectedIdx) = [];
                     handles.roiHandles(selectedIdx) = [];
-                    
-                    disp('ROI suppressed.');
+
+                    msg = sprintf('ROI suppressed.');  % or any dynamic message
+                    set(handles.status, 'String', msg);
+                    drawnow;  % forces immediate GUI update
                     updateCiliaCount(hObject);
                 end
             case 'r'  % 'r' for refresh/redraw
-                % Clear existing ROI plots
-                for i = 1:numel(handles.roiHandles)
-                    for h = handles.roiHandles{i}
-                        if isvalid(h)
-                            delete(h);
-                        end
-                    end
-                end
-                handles.roiHandles = {};
+                msg = sprintf('WAIT, Currently redrawing cilia detections .');  % or any dynamic message
+                set(handles.status, 'String', msg, 'FontSize', 24);
+                drawnow;  % forces immediate GUI update
                 
-                % Redraw all cilia detections
-                hold(handles.ax, 'on');
-                for i = 1:numel(handles.ciliaDetections)
-                    det = handles.ciliaDetections{i};
-                    mask = det.mask;
-                    zplane = det.zplane;
-                    channel = det.channel;
-                    
-                    % Find the contour of the mask
-                    B = bwboundaries(mask);
-                    roiGroup = gobjects(0); % Collect handles for this detection
-                    for k = 1:length(B)
-                        boundary = B{k};
-                        h = plot(handles.ax, boundary(:,2), boundary(:,1), 'g-', 'LineWidth', 1.5);
-                        roiGroup(end+1) = h;
-                    end
-                    % Plot the original click point
-                    hPoint = plot(handles.ax, det.click(1), det.click(2), 'g+', 'MarkerSize', 10, 'LineWidth', 1.5);
-                    roiGroup(end+1) = hPoint;
-                    
-                    % Store handles
-                    handles.roiHandles{end+1} = roiGroup;
-                    updateCiliaCount(hObject);
-                end
-                hold(handles.ax, 'off');
-                disp('All cilia detections have been redrawn.');
+                handles = redrawAllDetections(handles);
+                guidata(hObject, handles);
+                 updateCiliaCount(hObject);
+                msg = sprintf('All cilia detections have been redrawn.');  % or any dynamic message
+%                 set(handles.status, ...
+%         'FontName', opts.FontName, ...
+%         'FontSize', opts.FontSize, ...
+%         'FontWeight', opts.FontWeight,
+                set(handles.status, 'String', msg, 'FontSize', 12);
+                drawnow;  % forces immediate GUI update
+
             case 'm'  % 'm' for merge
                 % Get current mouse position
                 cp = get(handles.ax, 'CurrentPoint');
@@ -346,7 +421,9 @@ guidata(fig, handles);
                 [idx1, idx2] = findTwoClosestROIs(xClick, yClick, handles.ciliaDetections);
                 
                 if isempty(idx1) || isempty(idx2)
-                    disp('Not enough ROIs to merge.');
+                    msg = sprintf('Not enough ROIs to merge.');  % or any dynamic message
+                    set(handles.status, 'String', msg);
+                    drawnow;  % forces immediate GUI update
                     return;
                 end
                 
@@ -358,6 +435,7 @@ guidata(fig, handles);
                 overlapMask = mask1 & mask2;
                 if any(overlapMask(:))
                     proceedToMerge = true;
+                    proximityThreshold = 5; 
                 else
                     % Calculate minimum distance between ROI boundaries
                     B1 = bwboundaries(mask1);
@@ -372,8 +450,20 @@ guidata(fig, handles);
                 
                 if proceedToMerge
                     % Merge the masks
-                    mergedMask = mask1 | mask2;
+%                     mergedMask = mask1 | mask2;
                     
+                    unionMask = mask1 | mask2;
+                    % Attempt minimal bridge:
+                    tmp = bwmorph(unionMask, 'bridge');
+                    if ~isequal(tmp, unionMask)
+                        mergedMask = tmp;
+                    else
+                        % Use closing to bridge small gap
+                        se = strel('disk', proximityThreshold);
+                        mergedMask = imclose(unionMask, se);
+                    end
+    
+    
                     % Create new detection
                     newDetection = struct( ...
                         'channel', handles.ciliaDetections{idx1}.channel, ...
@@ -381,7 +471,7 @@ guidata(fig, handles);
                         'click', round((handles.ciliaDetections{idx1}.click + handles.ciliaDetections{idx2}.click)/2), ...
                         'mask', mergedMask);
                     
-                    % Remove old detections and add new one
+                    % Remove old detections
                     idxToRemove = sort([idx1, idx2], 'descend');
                     for i = 1:length(idxToRemove)
                         % Delete ROI graphics
@@ -397,16 +487,36 @@ guidata(fig, handles);
                         handles.roiHandles(idxToRemove(i)) = [];
                     end
                     
+                    % plot the new detection 
+                    B = bwboundaries(mergedMask);
+                    roiGroup = gobjects(0); % Collect handles for this detection
+                    for k = 1:length(B)
+                        boundary = B{k};
+                        h = plot(handles.ax, boundary(:,2), boundary(:,1), 'g-', 'LineWidth', 1.5);
+                        roiGroup(end+1) = h;
+                    end
+                    % Plot the original click point
+                    hPoint = plot(handles.ax, newDetection.click(1), newDetection.click(2), 'g+', 'MarkerSize', 10, 'LineWidth', 1.5);
+                    roiGroup(end+1) = hPoint;
+                    
+                    % Store handles
+                    handles.roiHandles{end+1} = roiGroup;
+                    
                     % Add new detection
                     handles.ciliaDetections{end+1} = newDetection;
-                    % (Optional) Add code here to display the new ROI and update roiHandles
-                    
+                   
                     % Update display and count
-                    updateDisplay(handles);
+                    updateDisplay(hObject);
                     updateCiliaCount(hObject);
-                    disp('Merged two closest ROIs.');
+%                     disp('Merged two closest ROIs.');
+                    
+                    msg = sprintf('Merged two closest ROIs');  % or any dynamic message
+                    set(handles.status, 'String', msg);
+                    drawnow;  % forces immediate GUI update
                 else
-                    disp('Selected ROIs are not overlapping or within the proximity threshold.');
+                    msg = sprintf('Selected ROIs are not overlapping or within the proximity threshold.');  % or any dynamic message
+                    set(handles.status, 'String', msg);
+                    drawnow;  % forces immediate GUI update
                 end
             case {'escape', 'q'}
                 close(handles.fig);
@@ -572,3 +682,20 @@ end
 % %         disp('Parameters updated.');
 % %     end
 % % end
+
+
+% % handles.status = uicontrol('Style','text', ...
+% %     'Units','normalized', ...
+% %     'Position',[0.01, 0.95, 0.3, 0.04], ...
+% %     'BackgroundColor','k', ...
+% %     'ForegroundColor','w', ...
+% %     'FontName','Arial', ...         % Change font family
+% %     'FontSize',12, ...              % Set font size
+% %     'FontWeight','bold', ...        % Use bold weight
+% %     'FontAngle','italic', ...       % Italic slant
+% %     'HorizontalAlignment','left', ...
+% %     'String','Ready');
+% % 
+% % handles.status = uicontrol('FontSize',12)
+
+
