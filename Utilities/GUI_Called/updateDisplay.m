@@ -5,8 +5,7 @@ function [clim] = updateDisplay(hObject)
     currentImage = handles.stack{handles.currentChannel}(:,:,handles.currentZ);
     set(handles.imgHandle, 'CData', currentImage);
     
-% %     % Keep the user’s brightness/contrast
-% %     applyWindowLevel(handles);
+
     % Re-apply the current window/level (if you keep them in handles)
     I = double(handles.stack{handles.currentChannel}(:,:,handles.currentZ));
     lo = prctile(I(:),1);  hi = prctile(I(:),99);         % robust stretch

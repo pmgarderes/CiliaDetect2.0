@@ -261,6 +261,9 @@ guidata(fig, handles);
                     handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
                 end
                 applyLW(handles);
+                title(handles.ax, sprintf('Channel %d | Z-plane %d/%d', ...
+                    handles.currentChannel, handles.currentZ, handles.numSlices), ...
+                    'Color', 'w', 'FontSize', 18);
                 guidata(hObject, handles);
 
             case 'leftarrow'
@@ -282,6 +285,9 @@ guidata(fig, handles);
                     handles.LW_by_channel(handles.currentChannel,:) = [handles.windowLevel, handles.windowWidth];
                 end
                 applyLW(handles);
+                title(handles.ax, sprintf('Channel %d | Z-plane %d/%d', ...
+                    handles.currentChannel, handles.currentZ, handles.numSlices), ...
+                    'Color', 'w', 'FontSize', 18);
                 guidata(hObject, handles);
             case 'uparrow'
                 handles.currentZ = min(handles.currentZ + 1, handles.numSlices);
@@ -289,6 +295,9 @@ guidata(fig, handles);
                 img = handles.stack{handles.currentChannel}(:,:,handles.currentZ);
                 set(handles.imgHandle,'CData',img);
                 applyLW(handles);   % same L/W across planes
+                title(handles.ax, sprintf('Channel %d | Z-plane %d/%d', ...
+                    handles.currentChannel, handles.currentZ, handles.numSlices), ...
+                    'Color', 'w', 'FontSize', 18);
                 guidata(hObject, handles);
 
             case 'downarrow'
@@ -296,6 +305,9 @@ guidata(fig, handles);
                 img = handles.stack{handles.currentChannel}(:,:,handles.currentZ);
                 set(handles.imgHandle,'CData',img);
                 applyLW(handles);
+                title(handles.ax, sprintf('Channel %d | Z-plane %d/%d', ...
+                    handles.currentChannel, handles.currentZ, handles.numSlices), ...
+                    'Color', 'w', 'FontSize', 18);
                 guidata(hObject, handles);
             case 'u'  % Undo last detection
                 if ~isempty(handles.ciliaDetections)
