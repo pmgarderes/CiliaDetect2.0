@@ -11,13 +11,26 @@ if isequal(fileName, 0)
     return;
 end
 fullFileName = fullfile(filePath, fileName);
-disp(['Selected file: ', fullFileName]);
+
+set(handles.WAITstatus, 'String', 'WAIT');
+msg = sprintf(' ... Loading reduced file .');  % or any dynamic message
+updateStatusText(handles.status, '', msg);
+
+% disp(['Selected file: ', fullFileName]);
 % TODO: Add code here to process the selected file
 load(fullFileName)
 % Upddate working dir handle
 handles.workingDir = filePath;  % Store the selected directory
 % Update variables
 handles.stack = imgStack; % is loaded from the filename
+if exist('metadata')
+    handles.metadata = metadata; % is loaded from the filename
+    msgFile = 'stack and metadata loaded';
+    
+else
+    msgFile = 'stack but not metadata loaded';
+    handles.metadata = []; 
+end
 handles.numChannels = numel(imgStack);
 handles.currentChannel = 1;
 handles.numSlices = size(imgStack{1}, 3);
@@ -52,15 +65,19 @@ handles.windowLevel = mean([clim(1) clim(2)]);
 handles.windowWidth = clim(2) - clim(1);
 
 
-msg = sprintf('WAIT, Currently redrawing cilia detections .');  % or any dynamic message
-set(handles.status, 'String', msg);
+msg = sprintf(' ... Redrawing cilia detections .');  % or any dynamic message
+% set(handles.status, 'String', msg);
+updateStatusText(handles.status, msgFile, msg);
 drawnow;  % forces immediate GUI update
 
 handles = redrawAllDetections(handles);
 guidata(hObject, handles);
 updateCiliaCount(hObject);
+
+set(handles.WAITstatus, 'String', '');
 msg = sprintf('All cilia detections have been redrawn.');  % or any dynamic message
-set(handles.status, 'String', msg);
+% set(handles.status, 'String', msg);
+updateStatusText(handles.status, msgFile, msg);
 drawnow;  % forces immediate GUI update
 
 

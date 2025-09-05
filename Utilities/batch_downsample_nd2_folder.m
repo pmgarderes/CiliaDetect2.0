@@ -32,7 +32,10 @@ for i = 1:numel(nd2Files)
     try
         param.DSfactor = DSfactor;
         [imgStack, metadata] = load_nd2_image_downsampled(fullpath, param);
-
+        
+        % Extract plain MATLAB metadata:
+        metadata = bf_metadata_to_struct(reader);
+    
         if saveMetadata
             save(saveName, 'imgStack', 'metadata', '-v7.3');
         else

@@ -35,7 +35,7 @@ results = struct( ...
 
 % Process each detection
 if strcmp(params.QuantificationDepth, 'Volume')
-     results = quantifyCiliaFluorescenceVolume(stack, uniqueDetections, params);
+    results = quantifyCiliaFluorescenceVolume(stack, uniqueDetections, params);
 else
     for i = 1:numDetections
         det = uniqueDetections{i};
@@ -52,8 +52,10 @@ else
         % Compute areas
         ciliaArea = sum(mask(:));
         se = strel('disk', params.backgroundSpread);
+        sePad = strel('disk', params.backgroundPadding);
         dilatedMask = imdilate(mask, se);
         padMask = imdilate(mask, sePad);
+        
         % background mask excludes the padded region
         backgroundMask = dilatedMask & ~padMask;
         backgroundArea = sum(backgroundMask(:));
@@ -87,18 +89,19 @@ else
                 totalCorrected(ch) = corrected(ch) * ciliaArea;
             end
         end
+        
+        
+        % Store everything in struct
+        results(i).click = det.click;
+        results(i).zplane = det.zplane;
+        results(i).sourceChannel = det.channel;
+        results(i).ciliaArea = ciliaArea;
+        results(i).backgroundArea = backgroundArea;
+        results(i).meanCilia = meanCilia;
+        results(i).meanBackground = meanBackground;
+        results(i).corrected = corrected;
+        results(i).totalCorrected = totalCorrected;
     end
-    
-    % Store everything in struct
-    results(i).click = det.click;
-    results(i).zplane = det.zplane;
-    results(i).sourceChannel = det.channel;
-    results(i).ciliaArea = ciliaArea;
-    results(i).backgroundArea = backgroundArea;
-    results(i).meanCilia = meanCilia;
-    results(i).meanBackground = meanBackground;
-    results(i).corrected = corrected;
-    results(i).totalCorrected = totalCorrected;
 end
 end
 

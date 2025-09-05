@@ -18,6 +18,11 @@ function [imgStack, metadata] = load_nd2_image_downsampled(filename, param)
     
     % Initialize reader
     reader = bfGetReader(filename);
+    
+        % Extract plain MATLAB metadata:
+        metadata = bf_metadata_to_struct(reader);
+        
+     
     OMEXMLService = loci.formats.services.OMEXMLServiceImpl();
     metadataStore = reader.getMetadataStore();
 
@@ -71,6 +76,6 @@ function [imgStack, metadata] = load_nd2_image_downsampled(filename, param)
         imgStack{c} = uint16(avgStack); % Convert back to integer
     end
 
-    metadata = metadataStore;
+%     metadata = metadataStore;
     reader.close();
 end
