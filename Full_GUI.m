@@ -17,8 +17,8 @@ params.minArea = 10;     % Minimum area of cilia
 params.maxArea = 1500;   % Maximum area of cilia
 params.minElongation = 2.0;  % Minimum elongation ratio
 params.minThinness = 2.0;  % Try values between 1.5 and 3 % Minimum thinness ratio\
-params.adaptiveSensitivity = 0.4; % Try values between 0.3 and 0.7 % Sensitivity for adaptive thresholding
-params.maxroiOverlap = 0.8; % DO NOT CHANGE 0.5 is 50% roi overlap ; above this number, only one roi is kept
+params.adaptiveSensitivity = 0.5; % Try values between 0.3 and 0.7 % Sensitivity for adaptive thresholding
+params.maxroiOverlap = 0.8; % DO NOT CHANGE 0.8 is 80% roi overlap ; above this number, only one roi is kept
 
 % Spread for background mask dilation ( in pixel)
 params.backgroundSpread = 12;        % Spread for background mask dilation
@@ -31,7 +31,7 @@ params.minEccentricity = 0.8;
 
 % parameter quantificaiton
 params.fluorescenceMode ='sum' ;  %  'mean' or 'sum' 'Narrowsum' or 'Volume'
-params.QuantificationDepth ='SubStack' ;  %  'FullStack' or 'SubStack' or 'Volume'
+params.QuantificationDepth ='FullStack' ;  %  'FullStack' or 'SubStack' or 'Volume'
 stack= {ones(1,1,1)};
 uniqueDetections= [] ;
 
@@ -539,7 +539,8 @@ guidata(fig, handles);
                     handles.ciliaDetections{end+1} = newDetection;
                    
                     % Update display and count
-                    updateDisplay(hObject);
+%                     updateDisplay(hObject);
+%                     applyWindowLevel(handles);
                     updateCiliaCount(hObject);
 %                     disp('Merged two closest ROIs.');
                     
