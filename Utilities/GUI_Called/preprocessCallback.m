@@ -36,7 +36,8 @@ function preprocessCallback(hObject, ~)
     updateStatusText(handles.status, msg, foldername);
     % Run batch (just pass the text handle)
     try
-        N = batch_downsample_nd2_folder_liveReport(handles.workingDir, DSfactor, true, handles.status_Operation);
+        N = load_bioformats_image_downsampled(handles.workingDir, DSfactor, true, handles.status_Operation);
+        
         updateStatusText(handles.status, 'Done.', '');
     catch ME
         updateStatusText(handles.status, 'Error during pre-processing:', ME.message);

@@ -14,71 +14,96 @@ fullFileName = fullfile(filePath, fileName);
 
 set(handles.WAITstatus, 'String', 'WAIT');
 msg = sprintf(' ... Loading reduced file .');  % or any dynamic message
-updateStatusText(handles.status, '', msg);
+updateStatusText(handles.status,  msg, '');
+
+% erase status operation
+updateStatusText(handles.status_Operation, '', '');
+
 
 % disp(['Selected file: ', fullFileName]);
 % TODO: Add code here to process the selected file
-load(fullFileName)
-% Upddate working dir handle
-handles.workingDir = filePath;  % Store the selected directory
-% Update variables
-handles.stack = imgStack; % is loaded from the filename
-if exist('metadata')
-    handles.metadata = metadata; % is loaded from the filename
-    msgFile = 'Stack and Metadata loaded';
-else
-    msgFile = 'Stack but not Metadata loaded';
-    handles.metadata = []; 
+try
+    % Try to load the file
+    S = load(fullFileName);
+    % (optional) check that expected variables exist
+    if ~isfield(S,'imgStack')
+        error('The selected file does not contain variable "imgStack".');
+    end
+
+
+    load(fullFileName)
+    % Upddate working dir handle
+    handles.workingDir = filePath;  % Store the selected directory
+    % Update variables
+    handles.stack = imgStack; % is loaded from the filename
+    if exist('metadata')
+        handles.metadata = metadata; % is loaded from the filename
+        msgFile = 'Stack and Metadata loaded';
+    else
+        msgFile = 'Stack but not Metadata loaded';
+        handles.metadata = [];
+    end
+    handles.numChannels = numel(imgStack);
+    handles.currentChannel = 1;
+    handles.numSlices = size(imgStack{1}, 3);
+    handles.currentZ = 1;
+    handles.filePath = filePath;
+    handles.fileName = fileName;
+
+    handles.LW_by_channel = nan(handles.numChannels,2);  % [L W] per channel
+
+    % autmatically load cilias
+
+    fullFileName = fullfile(handles.filePath, handles.fileName);
+    % Extract directory and base name
+    [nd2Dir, baseName, ~] = fileparts(fullFileName);
+    % Construct the save filename
+    saveFileName = [baseName '_cilia_detections.mat'];
+    savePath = fullfile([nd2Dir, filesep 'MatlabQuantif' filesep  saveFileName]);
+    % Call the external function to LOAD detections
+    if exist(savePath)
+        load(savePath,'ciliaDetections');
+        handles.ciliaDetections = ciliaDetections;
+    end
+
+    % Update the handles structure
+    guidata(hObject, handles);
+
+
+    % Refresh the display or perform additional updates as needed
+    [clim] = updateDisplay(hObject);
+    handles.clim = clim;
+    handles.windowLevel = mean([clim(1) clim(2)]);
+    handles.windowWidth = clim(2) - clim(1);
+
+
+    msg = sprintf(' ... Redrawing cilia detections .');  % or any dynamic message
+    % set(handles.status, 'String', msg);
+    updateStatusText(handles.status, msgFile, msg);
+    drawnow;  % forces immediate GUI update
+
+    handles = redrawAllDetections(handles);
+    guidata(hObject, handles);
+    updateCiliaCount(hObject);
+
+    set(handles.WAITstatus, 'String', '');
+    msg = sprintf('All cilia detections have been redrawn.');  % or any dynamic message
+    % set(handles.status, 'String', msg);
+    updateStatusText(handles.status, msgFile, msg);
+    drawnow;  % forces immediate GUI update
+
+catch
+    % If loading fails, show user-friendly error in GUI
+    set(handles.WAITstatus, 'String', 'ERROR');
+    msg = sprintf(' ... Failed to load file, did you pick a _reduced.mat file ?');  % or any dynamic message
+    updateStatusText(handles.status, '', msg);
+
+%     errMsg = sprintf('Failed to load file: %s\nReason: %s', fullFileName, ME.message);
+%     updateStatusText(handles.status, '', errMsg);
+% 
+%     % Also show modal error dialog
+%     errordlg(errMsg, 'File Load Error');
 end
-handles.numChannels = numel(imgStack);
-handles.currentChannel = 1;
-handles.numSlices = size(imgStack{1}, 3);
-handles.currentZ = 1;
-handles.filePath = filePath;
-handles.fileName = fileName; 
-
-handles.LW_by_channel = nan(handles.numChannels,2);  % [L W] per channel
-
-% autmatically load cilias
-
-fullFileName = fullfile(handles.filePath, handles.fileName);
-% Extract directory and base name
-[nd2Dir, baseName, ~] = fileparts(fullFileName);
-% Construct the save filename
-saveFileName = [baseName '_cilia_detections.mat'];
-savePath = fullfile([nd2Dir, filesep 'MatlabQuantif' filesep  saveFileName]);
-% Call the external function to LOAD detections
-if exist(savePath)
-    load(savePath,'ciliaDetections');  
-    handles.ciliaDetections = ciliaDetections;
-end
-
-% Update the handles structure
-guidata(hObject, handles);
-
-
-% Refresh the display or perform additional updates as needed
-[clim] = updateDisplay(hObject);
-handles.clim = clim;
-handles.windowLevel = mean([clim(1) clim(2)]);
-handles.windowWidth = clim(2) - clim(1);
-
-
-msg = sprintf(' ... Redrawing cilia detections .');  % or any dynamic message
-% set(handles.status, 'String', msg);
-updateStatusText(handles.status, msgFile, msg);
-drawnow;  % forces immediate GUI update
-
-handles = redrawAllDetections(handles);
-guidata(hObject, handles);
-updateCiliaCount(hObject);
-
-set(handles.WAITstatus, 'String', '');
-msg = sprintf('All cilia detections have been redrawn.');  % or any dynamic message
-% set(handles.status, 'String', msg);
-updateStatusText(handles.status, msgFile, msg);
-drawnow;  % forces immediate GUI update
-
 
 
 end

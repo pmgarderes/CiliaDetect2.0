@@ -1,36 +1,51 @@
-function N = batch_downsample_nd2_folder_liveReport(folderPath, DSfactor, saveMetadata, statusHandle)
-% Inputs:
-%   folderPath  : string path
-%   DSfactor    : scalar downsample factor
-%   saveMetadata: boolean
-%   statusHandle: handle to your text uicontrol (shortcutPanel)
-N = 0 ; 
+function N = load_bioformats_image_downsampled(folderPath, DSfactor, saveMetadata, statusHandle)
+% Same interface as before, but supports .nd2, .czi, .dv
+
+N = 0;
 if nargin < 3 || isempty(saveMetadata), saveMetadata = true; end
+if nargin < 4, statusHandle = []; end
 
 % Ensure output folder
 saveFolder = fullfile(folderPath, 'reduced_stack');
 if ~isfolder(saveFolder), mkdir(saveFolder); end
 
-% List ND2 files
-nd2Files = dir(fullfile(folderPath, '*.nd2'));
-N = numel(nd2Files);
-updateStatusText(statusHandle, sprintf('%d files were found of type nd2', N), '');
+% Gather files across extensions (add more as needed)
+exts = {'.nd2','.czi','.dv'};
+files = [];
+for e = 1:numel(exts)
+    files = [files; dir(fullfile(folderPath, ['*' exts{e}]))]; %#ok<AGROW>
+end
+N = numel(files);
+updateStatusText(statusHandle, sprintf('%d files were found (.nd2/.czi/.dv)', N), '');
 
 % Process each file
 for i = 1:N
-    nd2name  = nd2Files(i).name;
-    fullpath = fullfile(folderPath, nd2name);
-    [~, base, ~] = fileparts(nd2name);
+    fname    = files(i).name;
+    fullpath = fullfile(folderPath, fname);
+    [~, base, ~, ] = fileparts(fname);
     saveName = fullfile(saveFolder, [base '_reduced.mat']);
 
     updateStatusText(statusHandle, ...
-        sprintf('%d files were found of type nd2', N), ...
-        sprintf('... Pre-processing %s [%d/%d]', 'file', i, N));
-    %         sprintf('processing: %s [%d/%d]', nd2name, i, N));
+        sprintf('%d files were found (.nd2/.czi/.dv)', N), ...
+        sprintf('... Pre-processing %s [%d/%d]', fname, i, N));
+
     try
         param.DSfactor = DSfactor;
-        [imgStack, metadata] = load_nd2_image_downsampled(fullpath, param);
 
+        % --- Dispatch by extension
+        [~,~,ext] = fileparts(fname);
+%         switch lower(ext)
+            [imgStack, metadata] = load_bioformats_stack_downsampled(fullpath, param);
+%             case '.nd2'
+%                 [imgStack, metadata] = load_nd2_image_downsampled(fullpath, param);
+%             case '.czi'
+%                 [imgStack, metadata] = load_czi_image_downsampled(fullpath, param);
+%             case '.dv'
+%                 [imgStack, metadata] = load_dv_image_downsampled(fullpath, param);
+%             otherwise
+%                 error('Unsupported extension: %s', ext);
+%         end
+% 
         if saveMetadata
             save(saveName, 'imgStack', 'metadata', '-v7.3');
         else
@@ -38,27 +53,89 @@ for i = 1:N
         end
 
         updateStatusText(statusHandle, ...
-            sprintf('%d files were found of type nd2', N), ...
-            sprintf('saved: %s [%d/%d]',  'file', i, N));
+            sprintf('%d files were found (.nd2/.czi/.dv)', N), ...
+            sprintf('saved: %s [%d/%d]', fname, i, N));
 
     catch ME
-        warning('Failed to process %s: %s', nd2name, ME.message);
+        warning('Failed to process %s: %s', fname, ME.message);
         updateStatusText(statusHandle, ...
-            sprintf('%d files were found of type nd2', N), ...
-            sprintf('FAILED: %s [%d/%d]',  'file', i, N));
+            sprintf('%d files were found (.nd2/.czi/.dv)', N), ...
+            sprintf('FAILED: %s [%d/%d]', fname, i, N));
     end
 end
 
 % Final message
-if saveMetadata
-    msg2  = ' Metadata also saved ';
-else
-   msg2  = ' Metadata not saved. ';
-end
-updateStatusText(statusHandle, sprintf('%d files of type nd2 were pre-processed and saved ', N), msg2);
-
+msg2 = ternary(saveMetadata, ' Metadata also saved ', ' Metadata not saved. ');
+updateStatusText(statusHandle, sprintf('%d files were pre-processed and saved ', N), msg2);
 updateStatusText(statusHandle,' ', ' ');
 end
+
+function out = ternary(cond, a, b), if cond, out=a; else, out=b; end, end
+
+
+
+
+% % function N = batch_downsample_nd2_folder_liveReport(folderPath, DSfactor, saveMetadata, statusHandle)
+% % % Inputs:
+% % %   folderPath  : string path
+% % %   DSfactor    : scalar downsample factor
+% % %   saveMetadata: boolean
+% % %   statusHandle: handle to your text uicontrol (shortcutPanel)
+% % N = 0 ; 
+% % if nargin < 3 || isempty(saveMetadata), saveMetadata = true; end
+% % 
+% % % Ensure output folder
+% % saveFolder = fullfile(folderPath, 'reduced_stack');
+% % if ~isfolder(saveFolder), mkdir(saveFolder); end
+% % 
+% % % List ND2 files
+% % nd2Files = dir(fullfile(folderPath, '*.nd2'));
+% % N = numel(nd2Files);
+% % updateStatusText(statusHandle, sprintf('%d files were found of type nd2', N), '');
+% % 
+% % % Process each file
+% % for i = 1:N
+% %     nd2name  = nd2Files(i).name;
+% %     fullpath = fullfile(folderPath, nd2name);
+% %     [~, base, ~] = fileparts(nd2name);
+% %     saveName = fullfile(saveFolder, [base '_reduced.mat']);
+% % 
+% %     updateStatusText(statusHandle, ...
+% %         sprintf('%d files were found of type nd2', N), ...
+% %         sprintf('... Pre-processing %s [%d/%d]', 'file', i, N));
+% %     %         sprintf('processing: %s [%d/%d]', nd2name, i, N));
+% %     try
+% %         param.DSfactor = DSfactor;
+% %         [imgStack, metadata] = load_nd2_image_downsampled(fullpath, param);
+% % 
+% %         if saveMetadata
+% %             save(saveName, 'imgStack', 'metadata', '-v7.3');
+% %         else
+% %             save(saveName, 'imgStack', '-v7.3');
+% %         end
+% % 
+% %         updateStatusText(statusHandle, ...
+% %             sprintf('%d files were found of type nd2', N), ...
+% %             sprintf('saved: %s [%d/%d]',  'file', i, N));
+% % 
+% %     catch ME
+% %         warning('Failed to process %s: %s', nd2name, ME.message);
+% %         updateStatusText(statusHandle, ...
+% %             sprintf('%d files were found of type nd2', N), ...
+% %             sprintf('FAILED: %s [%d/%d]',  'file', i, N));
+% %     end
+% % end
+% % 
+% % % Final message
+% % if saveMetadata
+% %     msg2  = ' Metadata also saved ';
+% % else
+% %    msg2  = ' Metadata not saved. ';
+% % end
+% % updateStatusText(statusHandle, sprintf('%d files of type nd2 were pre-processed and saved ', N), msg2);
+% % 
+% % updateStatusText(statusHandle,' ', ' ');
+% % end
 
 
 % % function batch_downsample_nd2_folder_liveReport(folderPath, DSfactor, saveMetadata, statusFcn)

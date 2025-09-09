@@ -21,13 +21,5 @@ else
     results(i).Area_um2        = NaN;
 end
 
-%     % (Optional, for provenance)
-%     if ~isfield(results(i),'units') || ~isstruct(results(i).units)
-%         results(i).units = struct();
-%     end
-%     results(i).units.Length_um     = 'µm';
-%     results(i).units.Width_um_mean = 'µm';
-%     results(i).units.Area_um2      = 'µm^2';
-%     results(i).units.Curviness     = 'dimensionless';
-%     results(i).units.LW_Ratio      = 'dimensionless';
+
 end

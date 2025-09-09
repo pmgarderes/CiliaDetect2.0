@@ -1,40 +1,52 @@
 function R = measure_cilium_simple(mask, Metadata, roi_id)
 % Simple, robust morphology for a single 2D cilium ROI.
-% Returns a struct with Length_um, Width_um_mean, Curviness, LW_Ratio, Area_um2.
+% Outputs (struct): Length_um, Width_um_mean, Curviness, LW_Ratio, Area_um2, ROI
 
     if ~islogical(mask), mask = mask ~= 0; end
     mask = imfill(mask, 'holes');
-    mask = bwareafilt(mask, 1);     % keep largest blob (optional but safer)
+    mask = bwareafilt(mask, 1);     % keep largest blob
 
+    % Pixel sizes (µm/px); fall back to 1 if missing
+    if ~isfield(Metadata,'pixelSizeX_um') || isempty(Metadata.pixelSizeX_um), Metadata.pixelSizeX_um = 1; end
+    if ~isfield(Metadata,'pixelSizeY_um') || isempty(Metadata.pixelSizeY_um), Metadata.pixelSizeY_um = 1; end
     px = Metadata.pixelSizeX_um;
     py = Metadata.pixelSizeY_um;
 
     % ---- Area (µm^2)
-    area_px = nnz(mask);
+    area_px  = nnz(mask);
     Area_um2 = area_px * px * py;
 
     % ---- Skeleton & endpoints
-    if exist('bwskel','file')
-        skel = bwskel(mask);
+    if any(mask(:))
+        if exist('bwskel','file')
+            skel = bwskel(mask);
+        else
+            skel = bwmorph(mask,'skel',inf);
+        end
+        for k = 1:3, skel = bwmorph(skel,'spur',1); end
     else
-        skel = bwmorph(mask,'skel',inf);
+        skel = false(size(mask));
     end
-    % prune small spurs
-    for k = 1:3, skel = bwmorph(skel,'spur',1); end
 
-    % endpoints
     endp = bwmorph(skel,'endpoints');
     [er, ec] = find(endp);
+
     if numel(er) < 2
-        % fallback: length from regionprops major axis (rough)
+        % Fallback: major axis (rough)
         rp = regionprops(mask,'MajorAxisLength');
-        Length_um = (isempty(rp) || isempty(rp.MajorAxisLength)) ? 0 : rp.MajorAxisLength * (px+py)/2;
+        if isempty(rp) || isempty(rp(1).MajorAxisLength)
+            Length_um = 0;
+        else
+            Length_um = rp(1).MajorAxisLength * (px + py)/2;  % approx if px~=py
+        end
         Curviness = 1;  % no reliable chord
     else
-        % pick the longest geodesic path between endpoints
         [Length_um, chord_um] = longest_skeleton_path_um(skel, [er ec], px, py);
-        Curviness = (chord_um>0) * (Length_um / chord_um);
-        if chord_um==0, Curviness = 1; end
+        if chord_um > 0
+            Curviness = Length_um / chord_um;
+        else
+            Curviness = 1;
+        end
     end
 
     % ---- Mean width (µm): tube approx = Area / Length
@@ -45,9 +57,12 @@ function R = measure_cilium_simple(mask, Metadata, roi_id)
     end
 
     % ---- Length/Width ratio
-    LW_Ratio = (Width_um_mean>0) * (Length_um / Width_um_mean);
+    if Width_um_mean > 0
+        LW_Ratio = Length_um / Width_um_mean;
+    else
+        LW_Ratio = 0;
+    end
 
-    % ---- Output
     if nargin < 3, roi_id = []; end
     R = struct('ROI',roi_id, ...
                'Length_um',Length_um, ...
@@ -58,29 +73,34 @@ function R = measure_cilium_simple(mask, Metadata, roi_id)
 end
 
 function [len_um, chord_um] = longest_skeleton_path_um(skel, endpoints_rc, px, py)
-% Compute centerline (geodesic) length along skeleton between the furthest endpoints.
+% Geodesic centerline length between the two most distant endpoints (in µm), anisotropy-aware.
+
     % map skeleton pixels to linear indices
     [r,c] = find(skel);
     lin = sub2ind(size(skel), r, c);
-    % 8-neighbors graph
     sz = size(skel);
+
+    if isempty(lin)
+        len_um = 0; chord_um = 0; return;
+    end
+
+    % 8-neighbor graph
     nbr = [-1 0; 1 0; 0 -1; 0 1; -1 -1; -1 1; 1 -1; 1 1];
-    E = [];     % edges
-    W = [];     % weights (µm)
-    idxMap = zeros(sz); idxMap(lin) = 1:numel(lin);
+    idxMap = zeros(sz); 
+    idxMap(lin) = 1:numel(lin);
+
+    E = [];  W = [];
     for k = 1:numel(lin)
         rr = r(k); cc = c(k);
         for m = 1:8
             rr2 = rr + nbr(m,1); cc2 = cc + nbr(m,2);
             if rr2>=1 && rr2<=sz(1) && cc2>=1 && cc2<=sz(2) && skel(rr2,cc2)
                 i = idxMap(rr,cc); j = idxMap(rr2,cc2);
-                if i<j
-                    % step length in µm (anisotropy-aware)
+                if i < j
                     dx = (cc2-cc) * px;
                     dy = (rr2-rr) * py;
-                    w = hypot(dx, dy);
                     E(end+1,:) = [i j]; %#ok<AGROW>
-                    W(end+1,1) = w;     %#ok<AGROW>
+                    W(end+1,1) = hypot(dx, dy); %#ok<AGROW>
                 end
             end
         end
@@ -88,36 +108,159 @@ function [len_um, chord_um] = longest_skeleton_path_um(skel, endpoints_rc, px, p
     if isempty(E)
         len_um = 0; chord_um = 0; return;
     end
+
     G = graph(E(:,1), E(:,2), W);
-    % endpoints nodes:
-    e_lin = sub2ind(sz, endpoints_rc(:,1), endpoints_rc(:,2));
+
+    % endpoint nodes
+    e_lin   = sub2ind(sz, endpoints_rc(:,1), endpoints_rc(:,2));
     e_nodes = idxMap(e_lin);
     e_nodes = e_nodes(e_nodes>0);
+
     if numel(e_nodes) < 2
         len_um = sum(W); chord_um = 0; return;
     end
-    % find pair of endpoints with max shortest-path distance
-    bestLen = 0; pair = [e_nodes(1) e_nodes(2)];
+
+    % find endpoint pair with max shortest-path distance
+    bestLen = 0; bestPair = e_nodes(1:2);
     for a = 1:numel(e_nodes)
-        [dist, ~, pred] = shortestpathtree_all(G, e_nodes(a)); %#ok<NASGU>
         for b = a+1:numel(e_nodes)
             d = distances(G, e_nodes(a), e_nodes(b));
             if isfinite(d) && d > bestLen
-                bestLen = d;
-                pair = [e_nodes(a) e_nodes(b)];
+                bestLen  = d;
+                bestPair = [e_nodes(a), e_nodes(b)];
             end
         end
     end
     len_um = bestLen;
 
-    % chord in µm between those endpoints (straight line)
-    [rrA, ccA] = ind2sub(sz, lin(pair(1)));
-    [rrB, ccB] = ind2sub(sz, lin(pair(2)));
+    % chord (straight-line) between those endpoints
+    [rrA, ccA] = ind2sub(sz, lin(bestPair(1)));
+    [rrB, ccB] = ind2sub(sz, lin(bestPair(2)));
     chord_um = hypot((ccB-ccA)*px, (rrB-rrA)*py);
 end
 
-function [dist, pred] = shortestpathtree_all(G, s)
-% helper to warm up distances; returns dist from s (not strictly needed but kept)
-    dist = distances(G, s, 1:numnodes(G));
-    pred = [];
-end
+
+
+% % function R = measure_cilium_simple(mask, Metadata, roi_id)
+% % % Simple, robust morphology for a single 2D cilium ROI.
+% % % Returns a struct with Length_um, Width_um_mean, Curviness, LW_Ratio, Area_um2.
+% % 
+% %     if ~islogical(mask), mask = mask ~= 0; end
+% %     mask = imfill(mask, 'holes');
+% %     mask = bwareafilt(mask, 1);     % keep largest blob (optional but safer)
+% % 
+% %     px = Metadata.pixelSizeX_um;
+% %     py = Metadata.pixelSizeY_um;
+% % 
+% %     % ---- Area (µm^2)
+% %     area_px = nnz(mask);
+% %     Area_um2 = area_px * px * py;
+% % 
+% %     % ---- Skeleton & endpoints
+% %     if exist('bwskel','file')
+% %         skel = bwskel(mask);
+% %     else
+% %         skel = bwmorph(mask,'skel',inf);
+% %     end
+% %     % prune small spurs
+% %     for k = 1:3, skel = bwmorph(skel,'spur',1); end
+% % 
+% %     % endpoints
+% %     endp = bwmorph(skel,'endpoints');
+% %     [er, ec] = find(endp);
+% %     if numel(er) < 2
+% %         % fallback: length from regionprops major axis (rough)
+% %         rp = regionprops(mask,'MajorAxisLength');
+% %         Length_um = (isempty(rp) || isempty(rp.MajorAxisLength)) ? 0 : rp.MajorAxisLength * (px+py)/2;
+% %         Curviness = 1;  % no reliable chord
+% %     else
+% %         % pick the longest geodesic path between endpoints
+% %         [Length_um, chord_um] = longest_skeleton_path_um(skel, [er ec], px, py);
+% %         Curviness = (chord_um>0) * (Length_um / chord_um);
+% %         if chord_um==0, Curviness = 1; end
+% %     end
+% % 
+% %     % ---- Mean width (µm): tube approx = Area / Length
+% %     if Length_um > 0
+% %         Width_um_mean = Area_um2 / Length_um;
+% %     else
+% %         Width_um_mean = 0;
+% %     end
+% % 
+% %     % ---- Length/Width ratio
+% %     LW_Ratio = (Width_um_mean>0) * (Length_um / Width_um_mean);
+% % 
+% %     % ---- Output
+% %     if nargin < 3, roi_id = []; end
+% %     R = struct('ROI',roi_id, ...
+% %                'Length_um',Length_um, ...
+% %                'Width_um_mean',Width_um_mean, ...
+% %                'Curviness',Curviness, ...
+% %                'LW_Ratio',LW_Ratio, ...
+% %                'Area_um2',Area_um2);
+% % end
+% % 
+% % function [len_um, chord_um] = longest_skeleton_path_um(skel, endpoints_rc, px, py)
+% % % Compute centerline (geodesic) length along skeleton between the furthest endpoints.
+% %     % map skeleton pixels to linear indices
+% %     [r,c] = find(skel);
+% %     lin = sub2ind(size(skel), r, c);
+% %     % 8-neighbors graph
+% %     sz = size(skel);
+% %     nbr = [-1 0; 1 0; 0 -1; 0 1; -1 -1; -1 1; 1 -1; 1 1];
+% %     E = [];     % edges
+% %     W = [];     % weights (µm)
+% %     idxMap = zeros(sz); idxMap(lin) = 1:numel(lin);
+% %     for k = 1:numel(lin)
+% %         rr = r(k); cc = c(k);
+% %         for m = 1:8
+% %             rr2 = rr + nbr(m,1); cc2 = cc + nbr(m,2);
+% %             if rr2>=1 && rr2<=sz(1) && cc2>=1 && cc2<=sz(2) && skel(rr2,cc2)
+% %                 i = idxMap(rr,cc); j = idxMap(rr2,cc2);
+% %                 if i<j
+% %                     % step length in µm (anisotropy-aware)
+% %                     dx = (cc2-cc) * px;
+% %                     dy = (rr2-rr) * py;
+% %                     w = hypot(dx, dy);
+% %                     E(end+1,:) = [i j]; %#ok<AGROW>
+% %                     W(end+1,1) = w;     %#ok<AGROW>
+% %                 end
+% %             end
+% %         end
+% %     end
+% %     if isempty(E)
+% %         len_um = 0; chord_um = 0; return;
+% %     end
+% %     G = graph(E(:,1), E(:,2), W);
+% %     % endpoints nodes:
+% %     e_lin = sub2ind(sz, endpoints_rc(:,1), endpoints_rc(:,2));
+% %     e_nodes = idxMap(e_lin);
+% %     e_nodes = e_nodes(e_nodes>0);
+% %     if numel(e_nodes) < 2
+% %         len_um = sum(W); chord_um = 0; return;
+% %     end
+% %     % find pair of endpoints with max shortest-path distance
+% %     bestLen = 0; pair = [e_nodes(1) e_nodes(2)];
+% %     for a = 1:numel(e_nodes)
+% %         [dist, ~, pred] = shortestpathtree_all(G, e_nodes(a)); %#ok<NASGU>
+% %         for b = a+1:numel(e_nodes)
+% %             d = distances(G, e_nodes(a), e_nodes(b));
+% %             if isfinite(d) && d > bestLen
+% %                 bestLen = d;
+% %                 pair = [e_nodes(a) e_nodes(b)];
+% %             end
+% %         end
+% %     end
+% %     len_um = bestLen;
+% % 
+% %     % chord in µm between those endpoints (straight line)
+% %     [rrA, ccA] = ind2sub(sz, lin(pair(1)));
+% %     [rrB, ccB] = ind2sub(sz, lin(pair(2)));
+% %     chord_um = hypot((ccB-ccA)*px, (rrB-rrA)*py);
+% % end
+% % 
+% % function [dist, pred] = shortestpathtree_all(G, s)
+% % % helper to warm up distances; returns dist from s (not strictly needed but kept)
+% %     dist = distances(G, s, 1:numnodes(G));
+% %     pred = [];
+% % end
