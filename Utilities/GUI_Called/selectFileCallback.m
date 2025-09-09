@@ -25,10 +25,9 @@ handles.workingDir = filePath;  % Store the selected directory
 handles.stack = imgStack; % is loaded from the filename
 if exist('metadata')
     handles.metadata = metadata; % is loaded from the filename
-    msgFile = 'stack and metadata loaded';
-    
+    msgFile = 'Stack and Metadata loaded';
 else
-    msgFile = 'stack but not metadata loaded';
+    msgFile = 'Stack but not Metadata loaded';
     handles.metadata = []; 
 end
 handles.numChannels = numel(imgStack);

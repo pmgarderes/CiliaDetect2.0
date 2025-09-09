@@ -4,6 +4,19 @@ Semi-automated MATLAB tool for detecting and quantifying cilia from ND2 image st
 
 ---
 
+
+
+
+## MATLAB Version  &  Required toolboxes : 
+MATLAB (tested on 2022b)
+Image Processing Toolbox
+Statistics and Machine Learning Toolbox
+
+
+
+---
+
+
 ## 🔧 Features
 
 - **Downsample ND2 stacks** with customizable averaging factor  

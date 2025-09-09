@@ -4,7 +4,7 @@ function quantifyAndSaveCallback(hObject)
     
     uniqueDetections = handles.ciliaDetections;
     % Perform quantification
-    results = quantify_cilia_fluorescence2(handles.stack, uniqueDetections, handles.params);
+    results = quantify_cilia_fluorescence2(handles.stack, uniqueDetections, handles.params, handles.metadata );
 
     % Convert results to a table
     resultsTable = struct2table(results);

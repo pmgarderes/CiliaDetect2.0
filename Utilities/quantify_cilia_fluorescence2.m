@@ -1,4 +1,4 @@
-function results = quantify_cilia_fluorescence2(stack, uniqueDetections, params)
+function results = quantify_cilia_fluorescence2(stack, uniqueDetections, params, Metadata)
 % Parameters
 %     if ~isfield(params, 'backgroundSpread')
 %         params.backgroundSpread = 5; % Default spread in pixels
@@ -60,6 +60,7 @@ else
         backgroundMask = dilatedMask & ~padMask;
         backgroundArea = sum(backgroundMask(:));
         
+
         % Initialize per-channel outputs
         meanCilia = zeros(1, numChannels);
         meanBackground = zeros(1, numChannels);
@@ -101,8 +102,19 @@ else
         results(i).meanBackground = meanBackground;
         results(i).corrected = corrected;
         results(i).totalCorrected = totalCorrected;
+
+
+        % quantify morphological properties
+        results = attach_cilium_morphology(results, i, mask, Metadata);
+
+
+
     end
 end
+
+
+
+
 end
 
 

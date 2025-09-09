@@ -45,7 +45,7 @@ function preprocessCallback(hObject, ~)
     end
     
     updateStatusText(handles.status, '', sprintf('Done pre-processing '));
-    updateStatusText(statusHandle, sprintf('%d files of type nd2 were pre-processed and saved ', N), msg2);
+    updateStatusText(handles.status_Operation, sprintf('%d files of type nd2 were pre-processed and saved ', N), '');
     set(handles.WAITstatus, 'String', '');
 end
 
