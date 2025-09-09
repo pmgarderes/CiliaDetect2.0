@@ -5,6 +5,11 @@ function visualizeMasksCallback(hObject)
     % Call the external function to save detections
     uniqueDetections = handles.ciliaDetections;
         
+    % display messages 
+    set(handles.WAITstatus, 'String', 'WAIT');
+    msg = sprintf(' ... Displaying Mask for illustration.');  %
+    updateStatusText(handles.status,  msg, '');
+
     % Call the visualization function with the necessary parameters
     visualize_cilia_masks(handles.stack,  uniqueDetections, handles.params);
     
@@ -25,5 +30,9 @@ function visualizeMasksCallback(hObject)
         % close this new figure
         %     pause
         figure(handles.fig);
+
+
+    set(handles.WAITstatus, 'String', '');
+    msg = sprintf('Done.');  % or any dynamic message
     
 end

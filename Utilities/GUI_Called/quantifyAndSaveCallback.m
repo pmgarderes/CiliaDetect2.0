@@ -3,8 +3,14 @@ function quantifyAndSaveCallback(hObject)
     handles = guidata(hObject);
     
     uniqueDetections = handles.ciliaDetections;
+
+    % display messages 
+    set(handles.WAITstatus, 'String', 'WAIT');
+    msg = sprintf(' ... Quantifying fluorescence and morphology.');  %
+    updateStatusText(handles.status,  msg, '');
+
     % Perform quantification
-    results = quantify_cilia_fluorescence2(handles.stack, uniqueDetections, handles.params, handles.metadata );
+    results = quantify_cilia_fluorescence3(handles.stack, uniqueDetections, handles.params, handles.metadata );
 
     % Convert results to a table
     resultsTable = struct2table(results);
@@ -22,6 +28,9 @@ function quantifyAndSaveCallback(hObject)
     % Write the table to an Excel file
     writetable(resultsTable, outputFilename);
 
-    % Notify the user
-    msgbox(['Fluorescence quantification saved to: ' outputFilename], 'Save Successful');
+    set(handles.WAITstatus, 'String', '');
+    msg = sprintf('Quantification has been done.');  % or any dynamic message
+
+%     % Notify the user
+%     msgbox(['Fluorescence quantification saved to: ' outputFilename], 'Save Successful');
 end
