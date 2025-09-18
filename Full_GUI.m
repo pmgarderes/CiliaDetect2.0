@@ -5,37 +5,30 @@ function Full_GUI()
 close all
  addpath(genpath('.'))
 
+
+%% Create fullscreen figure
+fig = figure('Name', 'GUI + Cilia Detection', ...
+    'WindowKeyPressFcn', @keyHandler, ...
+    'Color', 'k', ...
+    'Units', 'normalized', ...
+    'OuterPosition', [0 0 1 1]);
+
+handles.fig = fig;
+
+ax = axes('Parent', fig);
+handles.ax = ax;
+
+
 %% -- List of defaults  parameters  --
-% Downsampling factor for averaging the Z-stack
-params.load_reduced =1;
-params.DSfactor = 25;  % 25
-params.reload_previous_Detection = 0; % 1 or 0 % use 0 to overwrite previous detection
 
-% parameters for the GUI (ROI detection)
-params.windowSize = 100;  % Size of the ROI window
-params.minArea = 10;     % Minimum area of cilia
-params.maxArea = 1500;   % Maximum area of cilia
-params.minElongation = 2.0;  % Minimum elongation ratio
-params.minThinness = 2.0;  % Try values between 1.5 and 3 % Minimum thinness ratio\
-params.adaptiveSensitivity = 0.5; % Try values between 0.3 and 0.7 % Sensitivity for adaptive thresholding
-params.maxroiOverlap = 0.8; % DO NOT CHANGE 0.8 is 80% roi overlap ; above this number, only one roi is kept
 
-% Spread for background mask dilation ( in pixel)
-params.backgroundSpread = 12;        % Spread for background mask dilation
-params.backgroundPadding = 2;
-
-% Parameters for aumated detection 
-params.tophatRadius = 5;
-params.maxEccentricity = 1;
-params.minEccentricity = 0.8;
-
-% parameter quantificaiton
-params.fluorescenceMode ='sum' ;  %  'mean' or 'sum' 'Narrowsum' or 'Volume'
-params.QuantificationDepth ='FullStack' ;  %  'FullStack' or 'SubStack' or 'Volume'
+% initialize
 stack= {ones(1,1,1)};
 uniqueDetections= [] ;
 
 
+% Downsampling factor for averaging the Z-stack
+params = load_or_init_params();
 
 adaptiveSensitivity = params.adaptiveSensitivity;
 numChannels = numel(stack);
@@ -47,17 +40,7 @@ currentZ = 1;
 ciliaDetections = {};
 roiHandles = {};  % One per detection
 
-% Create fullscreen figure
-fig = figure('Name', 'GUI + Cilia Detection', ...
-    'WindowKeyPressFcn', @keyHandler, ...
-    'Color', 'k', ...
-    'Units', 'normalized', ...
-    'OuterPosition', [0 0 1 1]);
 
-handles.fig = fig;
-
-ax = axes('Parent', fig);
-handles.ax = ax;
 
 % if ciliaDetections is already defined
 ciliaDetections = uniqueDetections;
