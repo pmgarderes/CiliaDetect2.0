@@ -30,6 +30,7 @@ function quantifyAndSaveCallback(hObject)
 
     set(handles.WAITstatus, 'String', '');
     msg = sprintf('Quantification has been done.');  % or any dynamic message
+    updateStatusText(handles.status,  msg, '');
 
 %     % Notify the user
 %     msgbox(['Fluorescence quantification saved to: ' outputFilename], 'Save Successful');

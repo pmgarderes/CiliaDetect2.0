@@ -4,14 +4,13 @@ INSTALLATION
 This is a video describing the installation of the cilia detect APp 
 
 To run the toolbox, you need to 
-- 1- install matlab 2021 or later ( it might work with previous versions)
+- 1- install matlab 2021 or later
 Since this is not a free software, you might wanna check with your institution how to install it  
 if you can't get a license, contact me, we might try a standandalone version of the program
-	to simply install matlab :  https://www.mathworks.com/help/install/ug/install-products-with-internet-connection.html
-
-uring the installation make sure to install the following toolboxes : 
+During the installation make sure to install the following toolboxes : 
 	- statistics and machine learning 
 	- images processing toolbox  
+ matlab installation  https://www.mathworks.com/help/install/ug/install-products-with-internet-connection.html
 
 - 2 now you can download the code directly from my github
 	 https://github.com/pmgarderes/CiliaDetect2.0
@@ -87,16 +86,12 @@ LW_Ratio - length/Width ratio
 Area_µm2 - area 
 
 Note: Methods of quantificaiton 
-Both these method correct for the background and are mostly independant of how many z-planes were included in the stack. I advise to use the Sum method preferably  as Both methods should be appropriate to quantify cilia fluorescence and compare them between different stack/ experiments.  
-
-	
-
-
-F_StackSum_ch1	F_plan_ch1	F_StackSum_ch2	F_plan_ch2	F_StackSum_ch3	F_plan_ch3	F_StackSum_ch4	F_plan_ch4	Length_um	Width_um_mean	Curviness	LW_Ratio	Area_um2
-
+Both these method correct for the background and both methods are appropriate to quantify cilia fluorescence and compare across experiments if the exposure is the same, and if  depth and Z-range are similar. The methods will differ slightly and  are impacted differenly by the range of your z-stack:  I advise to use primarily the (1) Sum methods, as long as your stack z-range is larger than a single cilium Z-span, and the (2) mean method otherwise.    
 
 
 EDIT PARAMETERS: 
+Any parameters can be modified by the user , and will be automatically saved and reloaded for the next session. 
+here are the parameteers definition, and default values.
 
 
 
