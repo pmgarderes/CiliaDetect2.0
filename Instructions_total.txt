@@ -1,0 +1,110 @@
+Instruction for installation, and lauching a session 
+INSTALLATION 
+
+This is a video describing the installation of the cilia detect APp 
+
+To run the toolbox, you need to 
+- 1- install matlab 2021 or later ( it might work with previous versions)
+Since this is not a free software, you might wanna check with your institution how to install it  
+if you can't get a license, contact me, we might try a standandalone version of the program
+	to simply install matlab :  https://www.mathworks.com/help/install/ug/install-products-with-internet-connection.html
+
+uring the installation make sure to install the following toolboxes : 
+	- statistics and machine learning 
+	- images processing toolbox  
+
+- 2 now you can download the code directly from my github
+	 https://github.com/pmgarderes/CiliaDetect2.0
+	you'll click here - download as zip file 
+
+- 3- you need to unzip and place the folder on your hard drive that suits you. 
+	in my case, I use Windows RAR, to set the files in a folder called ciliaGUI demo at the root of C./
+
+LAUNCH A SESSION
+
+- 4 - navigate in the folder to find the function Full_GUI.m, double click 
+	if matlab is not open yet, this will set automaticcaly the current folder right 
+	the current folder here on the left must contian the funciton FULLGUI
+	if it dosen't, set it right, here in the top bar
+
+- 5 - when the current folder is properly set, you can start a session 
+	- go to editor panel , and with the window FUll_GUI active, click Run 
+
+USING THE GUI 
+
+ PREPROCESSING - Z-Plans 
+ - 6 - first you want to prepare your images from the microscope to a format that the program can read. 
+	also our strategy is to reduce the number of frames that you captured within a stack to a small number of average, so we can separate multiple Z-plan from the same Z-stack. 
+	To do so, click the button "pre-process", The program will prompt you to choose the dowsampling factor. aka ' how many frames should be averaged together. if you want to use the entire stack in t asingle image , type a high number ( e.g. 1000). then use navigation to select the folder/directory , in which microscopy files are. You won't see the file, so select the directory. 
+	The text box will display a message (WIAT and infromaiton about pre-processing) and start downsampling . This might be time consuming if the stacks are very large, but you can do large batch of files overnight 
+	when the process it over, it created a new directory named matabquantif, in which one file is created for each original file. Thos files have the same name and a suffix _reduced.mat.
+
+LOAD A FILE 
+	the filename_reduced .mat is the only file that the program can load in the GUI. click now "select file" and navigate to the file, select and continue. 
+	
+GUI DISPLAY 
+in the center, the image displayed is one single Z-plan, in one singhle channel. the fluorescnece display can be adjusted using the numerical pad /, *, -, +, ( see shortcuts on the bottom left of the GUI. these settgins will prop[agate to other Z-plan of the same channel but not other channels
+You can then navigate between cahnnels with left/right directional arrows, and between Z-plans with up down arrows. 
+
+DETECTING ROIS 
+ to add a new ROI , click on the cilium ( not next to it )  the left click of your mouse act like a "pointer", that remain until you click somewhere else. Then press "space". this will activate the detection segmentatiopn of a cilium around your click. contour will appear. The algorithm detect areas in a "bean shape "  and sufficient contrast wi the background. if no ROI pass a treshold of detection ( for instance , not enought contrast with the background, or undefined shape ), it will appear as a single point , that must be deleted. the simplest is then to press "u" a single time to undo this last failed detection. Do not leave empty ROIs
+
+PARAMETERS TO INCREASE/ DECREASE DETECTIONS. 
+The most important parameter to adjust deteciton is "sensitivity", it should work between 0.3 and 0.7, but I recommend to use values closer to 0.4 or 0.5 . Higher values will facilitate detection , but it might also create les accurate ROIS. Adjust as needed for the contrast of your images. 
+
+
+MERGING ROIS
+when a cilium is umcompletely detected, or present across Z-planes, it might be necessary to merge two ROIs. (i.e. two chunks of the same ROI) . to do so, click next to the point of jonctiomn, and press "m". if the ROIs are close enought to be merge, they will do so. 
+
+DELETING ROIS
+When a ROI is not satysfying, you can delete it. simply click on, or very close to the ROI, and press "s". s will delete the ROI closest to the click pointer. 
+You can also delete all the ROIS in one click using the button: "Clear detections" 
+
+
+OTHER USEFULL BUTTONS
+if you are unsure about which the ROI display ? you can use "r" to refresh the display of the ROIs
+
+
+SAVE DETECTIONS; 
+click the button "Save Detections" at any time to save the detected ROIs. This actions will create a new file in a new folder called "Matlab quantif" located withinj 	"reduced_stack". this is where all results will be saved. The file with Cilia detection has the same name as the original file with the suffix "_reduced_cilia_detections.mat". Next time you open the reduced file, the program will automatically load and duiplay the detections you saved.
+Note : do not try to load this file with the GUI, only load files of the type "*_reduced.mat". 
+If the button "Save detections " is never clicked , the ROIs are not saved
+
+
+VISUALIZE MASKS and save illustration
+altought unecessary, it migh be wnted to visualize the ROI's MASK and the Background's MASK that will be used for computation of the fluorescence. click the button "Visualize masks ", it will display an image with the cilia's mask overlay with the current image (left image) and an image of background's mask ( rigth image). This image will be save 
+	parameters: you can adjust the padding (gap between ROI and background in pixels) and the background mask width(in pixels) 
+
+
+QUANTIFY AND SAVE FLUORESCENCE:
+To finally save the data in a readable format, click the button "Quantify and Save Fluorescence". This action will save the results for each cilium in one row of a newly created xls sheet (excel file), located in the Matlab_quantif folder with the same base name as the original file. 
+In the xls is computed the fluorescence with two distinct (altought comparable) methods: (1) sum over the column and (2) mean in the Z-plan. ( see more discussion about the two methods of quantification in the Note below). This fluorescence is saved for every channels as : F_StackSum_ch# and F_plan_ch#. 
+In addition to the fluorescence, the program will compute a few basic elements of morphology for the cilia, only if the metadata could be read-out  :
+Length_µm - the total length of the cilia in micro-meters
+Width_µm_mean - average width of the cilia in micro-meters
+Curviness -  Length_um / chord_um . it is tortuosity index: how much longer the path is compared to the straight-line span. 1 if perfectly straight, increases >1 for larger toruosity
+LW_Ratio - length/Width ratio 
+Area_µm2 - area 
+
+Note: Methods of quantificaiton 
+Both these method correct for the background and are mostly independant of how many z-planes were included in the stack. I advise to use the Sum method preferably  as Both methods should be appropriate to quantify cilia fluorescence and compare them between different stack/ experiments.  
+
+	
+
+
+F_StackSum_ch1	F_plan_ch1	F_StackSum_ch2	F_plan_ch2	F_StackSum_ch3	F_plan_ch3	F_StackSum_ch4	F_plan_ch4	Length_um	Width_um_mean	Curviness	LW_Ratio	Area_um2
+
+
+
+EDIT PARAMETERS: 
+
+
+
+
+
+
+	
+
+
+
+

@@ -52,6 +52,33 @@ try
 
     handles.LW_by_channel = nan(handles.numChannels,2);  % [L W] per channel
 
+    % Erase previous cilia detection
+    %     clearDetectionsCallback(hObject)
+    if 1
+        
+        % Delete all ROI graphical objects
+        if isfield(handles, 'roiHandles') && ~isempty(handles.roiHandles)
+            for i = 1:numel(handles.roiHandles)
+                for h = handles.roiHandles{i}
+                    if isvalid(h)
+                        delete(h);
+                    end
+                end
+            end
+        end
+        
+        % Clear the detections and ROI handles
+        handles.ciliaDetections = {};
+        handles.roiHandles = {};
+        
+        % Update the cilia count display
+        updateCiliaCount(hObject);
+        
+        % Save the updated handles structure
+        guidata(hObject, handles);
+    end
+    
+    
     % autmatically load cilias
 
     fullFileName = fullfile(handles.filePath, handles.fileName);
