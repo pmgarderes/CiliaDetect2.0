@@ -1,4 +1,4 @@
-# CiliaDetect 🧬
+# CiliaGUI 🧬
 
 Semi-automated MATLAB tool for detecting and quantifying cilia from ND2 image stacks.
 
