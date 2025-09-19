@@ -19,7 +19,7 @@ Statistics and Machine Learning Toolbox
 
 ## 🔧 Features
 
-- **Downsample ND2 stacks** with customizable averaging factor  
+- **Downsample ND2, CZI or DV stacks** with customizable averaging factor  
 - **Interactive GUI** for detection:  
   - Switch channels and Z-planes with ← → and ↑ ↓  
   - Click (`Spacebar`) to detect individual cilia  
@@ -31,29 +31,8 @@ Statistics and Machine Learning Toolbox
   - Save all detections (`.mat`)  
   - Quantification results exported to `.xlsx` table
 
----
+--- 
 
-## 🧭 Main Workflow (`Wrapper_Cilia_Process.m`)
+SEE user manual ( Pdf attached) for step by step instructions on how to use. 
 
-```matlab
-% 1. Paths and batch downsampling of ND2 files:
-batch_downsample_nd2_folder(foldername, DSfactor, true);
-
-% 2. Load image stack (downsampled .mat or ND2)
-[imgStack, metadata] = load_nd2_image_downsampled(filename, params);
-
-% 3. Open GUI to detect cilia
-view_nd2_with_cilia_gui(imgStack, params, uniqueDetections);
-
-% 4. Clean overlapping ROIs
-uniqueDetections = deduplicate_cilia_detections(ciliaDetections, params.maxroiOverlap);
-
-% 5. Save detections (.mat paired with source)
-save_cilia_detections(filename, ciliaDetections, uniqueDetections);
-
-% 6. Visualize masks
-visualize_cilia_masks(imgStack, uniqueDetections, params);
-
-% 7. Quantify fluorescence & export to Excel
-results = quantify_cilia_fluorescence2(imgStack, uniqueDetections, params);
-writetable(struct2table(results), fullfile(...));
+Feel free to contact me at pmgarderes at gmail dot com for help or information
