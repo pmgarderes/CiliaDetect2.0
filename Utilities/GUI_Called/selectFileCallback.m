@@ -23,12 +23,12 @@ updateStatusText(handles.status_Operation, '', '');
 % disp(['Selected file: ', fullFileName]);
 % TODO: Add code here to process the selected file
 try
-    % Try to load the file
-    S = load(fullFileName);
-    % (optional) check that expected variables exist
-    if ~isfield(S,'imgStack')
-        error('The selected file does not contain variable "imgStack".');
-    end
+% %     % Try to load the file
+% %     S = load(fullFileName);
+% %     % (optional) check that expected variables exist
+% %     if ~isfield(S,'imgStack')
+% %         error('The selected file does not contain variable "imgStack".');
+% %     end
 
 
     load(fullFileName)
@@ -73,6 +73,20 @@ try
         
         % Update the cilia count display
         updateCiliaCount(hObject);
+        
+        % erase autodetect tested popints
+        % Delete any plotted red dots (they were not stored in roiHandles)
+        ax = handles.ax;
+        % Find objects with red marker '.' on this axis
+        dots = findobj(ax, 'Type','line', 'Marker','.', 'Color',[1 0 0]);
+        if ~isempty(dots)
+            delete(dots);
+        end
+        % Reset the testedPoints table
+        handles.testedPoints = table('Size',[0 8], ...
+            'VariableTypes',{'double','double','double','double','double','double','logical','double'}, ...
+            'VariableNames',{'x','y','z','intensity','area','elong','passed','channel'});
+        
         
         % Save the updated handles structure
         guidata(hObject, handles);

@@ -8,7 +8,7 @@ function [clim] = updateDisplay(hObject)
 
     % Re-apply the current window/level (if you keep them in handles)
     I = double(handles.stack{handles.currentChannel}(:,:,handles.currentZ));
-    lo = prctile(I(:),1);  hi = prctile(I(:),99);         % robust stretch
+    lo = prctile(I(:),0.1);  hi = prctile(I(:),99.9);         % robust stretch
     caxis(handles.ax,[lo hi]); set(handles.ax,'CLimMode','manual');
     handles.windowLevel = mean([lo hi]);
     handles.windowWidth = hi - lo;

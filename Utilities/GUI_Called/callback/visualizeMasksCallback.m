@@ -33,6 +33,7 @@ function visualizeMasksCallback(hObject)
 
 
     set(handles.WAITstatus, 'String', '');
-    msg = sprintf('Done.');  % or any dynamic message
+    msg = sprintf(' Done drawing mask.');  %
+    updateStatusText(handles.status,  msg, '');
     
 end
