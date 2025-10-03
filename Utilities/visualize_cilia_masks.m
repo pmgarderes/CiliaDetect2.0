@@ -1,4 +1,4 @@
-function visualize_cilia_masks(stack, uniqueDetections, params)
+function visualize_cilia_masks(stack, uniqueDetections, params, current_Channel)
     % Overlay cilia and background masks on a reference image with padding.
 
     % Inputs:
@@ -21,9 +21,9 @@ function visualize_cilia_masks(stack, uniqueDetections, params)
         params.backgroundPadding = 2;
     end
 
-    [rows, cols, ~] = size(stack{3});
+    [rows, cols, ~] = size(stack{current_Channel});
     numDetections = numel(uniqueDetections);
-    refImage = mat2gray(sum(stack{3}, 3)); 
+    refImage = mat2gray(sum(stack{current_Channel}, 3)); 
 
     ciliaOverlay = repmat(refImage, [1,1,3]);
     backgroundOverlay = repmat(refImage, [1,1,3]);

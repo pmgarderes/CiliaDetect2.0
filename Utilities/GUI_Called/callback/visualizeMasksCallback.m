@@ -11,7 +11,7 @@ function visualizeMasksCallback(hObject)
     updateStatusText(handles.status,  msg, '');
 
     % Call the visualization function with the necessary parameters
-    visualize_cilia_masks(handles.stack,  uniqueDetections, handles.params);
+    visualize_cilia_masks(handles.stack,  uniqueDetections, handles.params, handles.currentChannel);
     
     % save the cilia mask to a picture somwhere  
     fullFileName = fullfile(handles.filePath, handles.fileName);

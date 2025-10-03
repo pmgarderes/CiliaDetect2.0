@@ -1,10 +1,10 @@
 {
   "windowSize":100,
   "minArea":10,
-  "maxArea":1500,
+  "maxArea":5000,
   "minElongation":2,
   "minThinness":2,
-  "adaptiveSensitivity":0.449,
+  "adaptiveSensitivity":0.6,
   "maxroiOverlap":0.8,
   "backgroundSpread":12,
   "backgroundPadding":2,
@@ -13,6 +13,6 @@
   "minEccentricity":0.8,
   "meta":{
   "version":1,
-  "last_modified":"2025-09-18 21:38:53"
+  "last_modified":"2025-10-02 14:59:25"
 }
 }
