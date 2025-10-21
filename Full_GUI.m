@@ -46,25 +46,34 @@ roiHandles = {};  % One per detection
 ciliaDetections = uniqueDetections;
 
 %% Define control buttons
+
+% Pre-processing many files
+uicontrol('Style', 'pushbutton', ...
+    'String', 'Preprocess (Downsample)', ...
+    'Units', 'normalized', ...
+    'Position', [0.85, 0.85, 0.12, 0.05], ...
+    'Callback', @preprocessCallback);
+
+% nd select file
+handles.EditParams =uicontrol('Style', 'pushbutton', ...
+          'String', 'Parametrize', ...
+          'Units', 'normalized', ...
+          'Position', [0.85, 0.78, 0.12, 0.05], ...
+          'Callback', @(hObject, event) ParametrizeCallback(hObject)); % 'Callback', @(hObject, ~) editParamsCallback(hObject); %
+
+
 % nd select file
 selectFileBtn = uicontrol('Style', 'pushbutton', ...
     'String', 'Select File', ...
     'Units', 'normalized', ...
-    'Position', [0.85, 0.8, 0.1, 0.05], ...
+    'Position', [0.85, 0.65, 0.12, 0.05], ...
     'Callback', @selectFileCallback);
-
-% Set working folder to do pre-processing
-uicontrol('Style', 'pushbutton', ...
-    'String', 'Preprocess (Downsample)', ...
-    'Units', 'normalized', ...
-    'Position', [0.85, 0.7, 0.1, 0.05], ...
-    'Callback', @preprocessCallback);
 
 % Save detection
 uicontrol('Style', 'pushbutton', ...
     'String', 'Save Detections', ...
     'Units', 'normalized', ...
-    'Position', [0.85, 0.6, 0.1, 0.05], ...
+    'Position', [0.85, 0.58, 0.1, 0.05], ...
     'Callback', @saveDetectionsCallback);
 
 % Visualize Masks
@@ -89,11 +98,13 @@ uicontrol('Style', 'pushbutton', ...
           'Callback', @autoDetectSeedsCallback);      
 
 handles.EditParams =uicontrol('Style', 'pushbutton', ...
-          'String', 'Edit Parameters', ...
+          'String', 'Edit any Parameters', ...
           'Units', 'normalized', ...
           'Position', [0.85, 0.05, 0.12, 0.05], ...
           'Callback', @(hObject, event) editParamsCallback(hObject)); % 'Callback', @(hObject, ~) editParamsCallback(hObject); %
-      
+
+
+
 handles.clearButton = uicontrol('Style', 'pushbutton', ...
     'String', 'Clear Detections', ...
     'Units', 'normalized', ...
@@ -601,118 +612,4 @@ distances = sqrt((centroids(:,1) - xClick).^2 + (centroids(:,2) - yClick).^2);
 distances(idx1) = inf;
 [minDist, idx2] = min(distances);
 end
-
-% % % %% BUtton helper functions
-% % % function updateCiliaCount(hObject)
-% % %     % Retrieve the handles structure
-% % %     handles = guidata(hObject);
-% % % 
-% % %     % Calculate the number of cilia detections
-% % %     count = numel(handles.ciliaDetections);
-% % % 
-% % %     % Update the count label in the GUI
-% % %     set(handles.countLabel, 'String', sprintf('Cilia Count: %d', count));
-% % % 
-% % %     % Save the updated handles structure
-% % %     guidata(hObject, handles);
-% % % end
-
-
-% % function selectFileCallback(hObject, ~)
-% % handles = guidata(hObject);  % Retrieve the handles structure
-% % if isfield(handles, 'workingDir')
-% %     initialDir = handles.workingDir;  % Use the stored working directory
-% % else
-% %     initialDir = pwd;  % Default to current directory if not set
-% % end
-% % [fileName, filePath] = uigetfile({'*.*', 'All Files'}, 'Select a File', initialDir);
-% % if isequal(fileName, 0)
-% %     disp('File selection canceled.');
-% %     return;
-% % end
-% % fullFileName = fullfile(filePath, fileName);
-% % disp(['Selected file: ', fullFileName]);
-% % % TODO: Add code here to process the selected file
-% % load(fullFileName)
-% % % Upddate working dir handle
-% % handles.workingDir = filePath;  % Store the selected directory
-% % % Update variables
-% % handles.stack = imgStack; % is loaded from the filename
-% % handles.numChannels = numel(imgStack);
-% % handles.currentChannel = 1;
-% % handles.numSlices = size(imgStack{1}, 3);
-% % handles.currentZ = 1;
-% % 
-% % % Update the handles structure
-% % guidata(hObject, handles);
-% % 
-% % % Refresh the display or perform additional updates as needed
-% % updateDisplay(hObject);
-% % 
-% % end
-
-% % function setWorkingDirCallback(hObject, ~)
-% % handles = guidata(hObject);  % Retrieve the handles structure
-% % selectedDir = uigetdir(pwd, 'Select Working Directory');
-% % if selectedDir ~= 0
-% %     handles.workingDir = selectedDir;  % Store the selected directory
-% %     guidata(hObject, handles);         % Save the updated handles structure
-% %     disp(['Working directory set to: ', selectedDir]);
-% % else
-% %     disp('Directory selection canceled.');
-% % end
-% % end
-
-
-% % function saveDetectionsCallback(hObject, ~)
-% % handles = guidata(hObject);  % Retrieve the handles structure
-% % 
-% % fullFileName = fullfile(filePath, fileName);
-% % 
-% % % Extract directory and base name
-% % [nd2Dir, baseName, ~] = fileparts(fullFileName);
-% % 
-% % % Construct the save filename
-% % saveFileName = [baseName '_cilia_detections.mat'];
-% % if ~isfolder([nd2Dir, filesep 'MatlabQuantif'])
-% %     mkdir([nd2Dir, filesep 'MatlabQuantif']);
-% % end
-% % savePath = fullfile([nd2Dir, filesep 'MatlabQuantif' filesep  saveFileName]);
-% % % Call the external function to save detections
-% % save_cilia_detections(fullFileName, ciliaDetections, uniqueDetections);
-% % 
-% % disp(['Cilia detections saved to ', fullFileName]);
-% % end
-
-
-% % function updateCiliaCount(hObject)
-% % count = numel(ciliaDetections);
-% % set(countLabel, 'String', sprintf('Cilia Count: %d', count));
-% % end
-
-% % function editParamsCallback(hObject)
-% %     handles = guidata(hObject);  % Retrieve the handles structure
-% %     newParams = openParamEditor(handles.params);  % Open the editor
-% %     if ~isempty(newParams)
-% %         handles.params = newParams;  % Update parameters
-% %         guidata(hObject, handles);  % Save the updated handles structure
-% %         disp('Parameters updated.');
-% %     end
-% % end
-
-
-% % handles.status = uicontrol('Style','text', ...
-% %     'Units','normalized', ...
-% %     'Position',[0.01, 0.95, 0.3, 0.04], ...
-% %     'BackgroundColor','k', ...
-% %     'ForegroundColor','w', ...
-% %     'FontName','Arial', ...         % Change font family
-% %     'FontSize',12, ...              % Set font size
-% %     'FontWeight','bold', ...        % Use bold weight
-% %     'FontAngle','italic', ...       % Italic slant
-% %     'HorizontalAlignment','left', ...
-% %     'String','Ready');
-% % 
-% % handles.status = uicontrol('FontSize',12)
-
 

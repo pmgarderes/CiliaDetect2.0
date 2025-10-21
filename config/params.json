@@ -1,0 +1,21 @@
+{
+  "windowSize":100,
+  "maxArea":5000,
+  "minArea":10,
+  "adaptiveSensitivity":0.45,
+  "minThinness":2,
+  "minElongation":2,
+  "minEccentricity":0.8,
+  "maxEccentricity":1,
+  "prefilterEnable":false,
+  "prefilterScalePx":2,
+  "lineBridgeEnable":false,
+  "maxroiOverlap":0.8,
+  "backgroundSpread":12,
+  "backgroundPadding":2,
+  "tophatRadius":5,
+  "meta":{
+  "version":1,
+  "last_modified":"2025-10-20 18:06:48"
+}
+}

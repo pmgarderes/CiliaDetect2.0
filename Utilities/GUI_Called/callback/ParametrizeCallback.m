@@ -1,11 +1,9 @@
-function editParamsCallback(hObject, ~)
+function ParametrizeCallback(hObject, ~)
     handles = guidata(hObject);
     oldParams = handles.params;
 
-    % Open editor (assume it returns a struct or [] if cancelled)
-    newParams = openParamEditor(oldParams);
-  
-%     newParams = openCiliaParamTunerFromHandles(oldParams, handles);
+%     % Open editor (assume it returns a struct or [] if cancelled)  
+    newParams = openCiliaParamTunerFromHandles(oldParams, handles);
 
     if isempty(newParams), return; end
 
@@ -29,14 +27,3 @@ function editParamsCallback(hObject, ~)
         errordlg(['Could not save parameters: ' ME.message], 'Save Error');
     end
 end
-
-
-% % function editParamsCallback(hObject)
-% %     handles = guidata(hObject);  % Retrieve the handles structure
-% %     newParams = openParamEditor(handles.params);  % Open the editor
-% %     if ~isempty(newParams)
-% %         handles.params = newParams;  % Update parameters
-% %         guidata(hObject, handles);  % Save the updated handles structure
-% %         disp('Parameters updated.');
-% %     end
-% % end
