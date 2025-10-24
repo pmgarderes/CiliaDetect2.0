@@ -3,7 +3,6 @@
 *.autosave
 
 # Ignore data files
-*.mat
 *.nd2
 *.csv
 
