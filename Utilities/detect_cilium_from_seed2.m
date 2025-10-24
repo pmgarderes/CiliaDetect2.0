@@ -12,6 +12,13 @@ if ~isfield(params,'prefilterScalePx'), params.prefilterScalePx = 2.0;  end
 if ~isfield(params,'lineBridgeEnable'), params.lineBridgeEnable = false; end
 if ~isfield(params,'minElongation'),   params.minElongation    = 2.0;  end
 if ~isfield(params,'minThinness'),     params.minThinness      = 2.0;  end
+if ~isfield(params,'useGOtsu'),     params.useGOtsu      = false ;  end
+if ~isfield(params,'splitOverlapsEnable'),     params.splitOverlapsEnable      = false ;  end
+if ~isfield(params,'splitMinCoreDistPx'),     params.splitMinCoreDistPx      = 0 ;  end
+
+if ~isfield(params,'strengthBridge'),     params.strengthBridge      = false ;  end
+if ~isfield(params,'strengthShrink'),     params.strengthShrink      = 0 ;  end
+% if ~isfield(params,'splitOverlapsEnable'),     params.splitOverlapsEnable      = false ;  end
 
 % --------- Crop ROI around seed -------------------------------
 x = round(seedPos(1));
@@ -25,12 +32,20 @@ roi_raw = img(y1:y2, x1:x2);              % keep raw for quantification if neede
 
 % --------- Detection-only prefilter (NEW) ---------------------
 % Uses only params.prefilterEnable / prefilterScalePx / lineBridgeEnable
-Idet = prefilter_for_detection(roi_raw, params);  % no-op if disabled
-
+Idet = prefilter_for_detection_fast(roi_raw, params);  % no-op if disabled
+% Idet = prefilter_for_detection(roi_raw, params); 
+% Idet = roi_raw;
 % --------- Adaptive threshold on filtered image ---------------
 In = mat2gray(Idet);  % adaptive expects roughly [0,1]
-bw = imbinarize(In, 'adaptive', 'Sensitivity', adaptiveSensitivity);
+
+if params.useGOtsu
+%     bw = imbinarize(In, 'global'); % use global otsu 
+     bw = imbinarize(In, graythresh(In)*(1-adaptiveSensitivity)); 
+else
+    bw = imbinarize(In, 'adaptive', 'Sensitivity', adaptiveSensitivity);
+end
 bw = bwareaopen(bw, max(1,round(params.minArea)));
+
 
 % --------- Map click to ROI coords, fetch clicked component ---
 cx = x - x1 + 1;
@@ -50,6 +65,50 @@ if clickedLabel == 0
 end
 
 roiMask = (labeled == clickedLabel);
+
+roiMask = imfill(roiMask, 'holes');
+
+if params.lineBridgeEnable
+%     strengthBridge = 0.6; % 0.5;
+%     strengthShrink = 0.2;
+    [BW, widthPx] = bridge_mask_simple_auto(roiMask, params.strengthBridge);  % strength in [0..1]
+%     [BW, score, widthPx] = shrink_mask_likelihood(roiMask, In, strengthBridge,strengthShrink);
+%     BW = shrink_simple(BW, In,  strengthShrink, adaptiveSensitivity);
+%     BW = shrink_simple_strong(BW,Idet,  strengthShrink); %Idet\ pretty   good alrteady with strengthShrink = 0.01;
+% figure; imagesc(BW)
+BW = shrink_simple_tunable(BW,Idet,  params.strengthShrink); % ,0, 0);
+
+    BW = imfill(BW, 'holes');
+    % keep center roi if spli
+    [H,W] = size(BW);
+    L = bwlabel(BW,8);
+    BW = L == L(cy, cx);  % if center not inside any ROI -> all false
+
+    roiMask = BW;
+
+
+else
+    BW = roiMask;
+end
+
+%% compute and simplify skeleton 
+
+if isfield(params,'splitOverlapsEnable') && params.splitOverlapsEnable
+
+    [Lsep, info] = splitOverlapsBySkeleton(BW, [cx cy], ...
+    'PruneLenPx', 6, 'SafetyHalo', 2);
+
+    % If you want the component nearest the seed only:
+    if exist('seedPos','var') && ~isempty(seedPos)
+        bw = pickNearestToSeed(Lsep, seedPos);
+    else
+        bw = Lsep > 0;
+    end
+    roiMask = bw;
+end
+
+
+
 
 % --------- Area check -----------------------------------------
 A = nnz(roiMask);
@@ -81,7 +140,21 @@ yy = yy + y1 - 1;
 xx = xx + x1 - 1;
 linIdx = sub2ind(size(img), yy, xx);
 ciliaMask(linIdx) = true;
+
+
+function BWsel = pickNearestToSeed(L, seed)
+    if ~any(L(:)), BWsel = false(size(L)); return; end
+    S = regionprops(L,'Centroid');
+    C = vertcat(S.Centroid);
+    d = hypot(C(:,1)-seed(1), C(:,2)-seed(2));
+    [~, idx] = min(d);
+    BWsel = (L == idx);
 end
+
+end
+
+
+
 
 % % function ciliaMask = detect_cilium_from_seed2(img, seedPos, params, adaptiveSensitivity)
 % % % img: 2D grayscale image (single Z-plane, single channel)

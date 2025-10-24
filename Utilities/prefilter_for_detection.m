@@ -25,18 +25,19 @@ function Idet = prefilter_for_detection(Iraw, p)
         J = imgaussfilt(Ir, scale);
     end
 
-    % Optional: short multi-angle line closing to bridge puncta along the shaft
-    if isfield(p,'lineBridgeEnable') && p.lineBridgeEnable
-        L = max(3, min(7, round(1.5*scale)));   % 3–7 px
-        angs = 0:30:150;
-        K = zeros(size(J),'like',J);
-        for th = angs
-            se = strel('line', L, th);
-            K = max(K, imclose(J, se));
-        end
-        J = K;
-    end
-
     % Return in original class/range
     Idet = cast(J * (Imax - Imin) + Imin, class(Iraw));
 end
+
+
+% %     % Optional: short multi-angle line closing to bridge puncta along the shaft
+% %     if isfield(p,'lineBridgeEnable') && p.lineBridgeEnable
+% %         L = max(3, min(7, round(1.5*scale)));   % 3–7 px
+% %         angs = 0:30:150;
+% %         K = zeros(size(J),'like',J);
+% %         for th = angs
+% %             se = strel('line', L, th);
+% %             K = max(K, imclose(J, se));
+% %         end
+% %         J = K;
+% %     end
