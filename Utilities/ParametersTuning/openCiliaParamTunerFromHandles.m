@@ -1,229 +1,241 @@
 function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
 % Returns updated struct on Apply, [] on Cancel/close.
 
-    % ---------- Build sample set ----------
-    dets = handles.ciliaDetections;
-    if isempty(dets), warndlg('No past cilia detections found.','No Samples'); newParams = []; return; end
-    if ~iscell(dets), dets = num2cell(dets); end
+% ---------- Build sample set ----------
+dets = getfield_def(handles,'ciliaDetections',[]);
+if ~iscell(dets), dets = num2cell(dets); end
 
-    K = numel(dets);
-    sampleImgs  = cell(K,1);
-    sampleSeeds = nan(K,2);
-    sampleCh    = nan(K,1);
+K = numel(dets);
+sampleImgs  = cell(K,1);
+sampleSeeds = nan(K,2);
+sampleCh    = nan(K,1);
 
-    for i = 1:K
-        d = dets{i};
-        seed = double(d.click(1:2));
-        sampleSeeds(i,:) = seed;
-
-        ch = getfield_ifexists(d, {'channel','ch','Channel','Chan'}, handles.currentChannel);
-        ch = clampIndex(ch, numel(handles.stack), 1);
-        I3 = getStack3D_preserve(handles.stack{ch});
-        z  = getfield_ifexists(d, {'z','zIndex','Z','slice','idxZ'}, handles.currentZ);
-        z  = clampIndex(z, size_or_len(I3,3), 1);
-
-        sampleImgs{i} = I3(:,:,z);
-        sampleCh(i)   = ch;
+for i = 1:K
+    d = dets{i};
+    if ~isstruct(d) || ~isfield(d,'click') || numel(d.click) < 2
+        continue
     end
+    seed = double(d.click(1:2));
+    sampleSeeds(i,:) = seed;
 
-    ok = ~cellfun(@isempty, sampleImgs) & all(isfinite(sampleSeeds),2);
-    sampleImgs  = sampleImgs(ok); sampleSeeds = sampleSeeds(ok,:); sampleCh = sampleCh(ok);
-    if isempty(sampleImgs), warndlg('Could not build sample set from existing detections.','No Valid Samples'); newParams = []; return; end
+    ch = getfield_ifexists(d, {'channel','ch','Channel','Chan'}, getfield_def(handles,'currentChannel',1));
+    ch = clampIndex(ch, numel(handles.stack), 1);
+    I3 = getStack3D_preserve(handles.stack{ch});
+    z  = getfield_ifexists(d, {'z','zIndex','Z','slice','idxZ'}, getfield_def(handles,'currentZ',1));
+    z  = clampIndex(z, size_or_len(I3,3), 1);
 
-    % ---------- Allow-list ----------
-    allowList = ["windowSize","maxArea","minArea","adaptiveSensitivity", ...
-                 "minThinness","minElongation","minEccentricity","maxEccentricity", ...
-                 "prefilterEnable","prefilterScalePx","lineBridgeEnable","useGOtsu", ...
-                 "splitOverlapsEnable","splitMinCoreDistPx", ...
-                 "strengthBridge","strengthShrink"];
+    sampleImgs{i} = I3(:,:,z);
+    sampleCh(i)   = ch;
+end
 
-    keep = intersect(allowList, string(fieldnames(currentParams)),'stable');
-    params = struct();
-    for k = 1:numel(keep), nm = keep(k); params.(nm) = currentParams.(nm); end
+ok = ~cellfun(@isempty, sampleImgs) & all(isfinite(sampleSeeds),2);
+sampleImgs  = sampleImgs(ok);
+sampleSeeds = sampleSeeds(ok,:);
+sampleCh    = sampleCh(ok);
+% NOTE: Do NOT early-return if empty; GUI still opens for Load/Save/Apply.
 
-    % Ensure required/default params
-    if ~isfield(params,'useGOtsu'),             params.useGOtsu = false; end
-    if ~isfield(params,'splitOverlapsEnable'),  params.splitOverlapsEnable = false; end
-    if ~isfield(params,'strengthBridge'),       params.strengthBridge = 0.6; end
-    if ~isfield(params,'strengthShrink'),       params.strengthShrink = 0.2; end
-    if ~isfield(params,'prefilterEnable'),      params.prefilterEnable = false; end
-    if ~isfield(params,'prefilterScalePx'),     params.prefilterScalePx = 2; end
-    if ~isfield(params,'lineBridgeEnable'),     params.lineBridgeEnable = true; end
+% ---------- Allow-list ----------
+allowList = ["windowSize","maxArea","minArea","adaptiveSensitivity", ...
+    "minThinness","minElongation","minEccentricity","maxEccentricity", ...
+    "prefilterEnable","prefilterScalePx","lineBridgeEnable","useGOtsu", ...
+    "splitOverlapsEnable","splitMinCoreDistPx", ...
+    "strengthBridge","strengthShrink"];
 
-    if ~isfield(params,'windowSize') || ~isscalar(params.windowSize) || ~isfinite(params.windowSize) || params.windowSize<=0
-        params.windowSize = 64;
-    end
+keep = intersect(allowList, string(fieldnames(currentParams)),'stable');
+params = struct();
+for k = 1:numel(keep), nm = keep(k); params.(nm) = currentParams.(nm); end
 
-    % ---------- Help/tooltip text ----------
-    helpText = struct();
-    helpText.windowSize          = 'Crop size (px) around the seed for preview and detection.';
-    helpText.maxArea             = 'Reject detections with area above this (px^2).';
-    helpText.minArea             = 'Reject detections with area below this (px^2).';
-    helpText.adaptiveSensitivity = '0–1: higher = more sensitive thresholding (keeps more pixels).';
-    helpText.minThinness         = 'Lower bound on thinness (4πA/P^2). Filters stubby/round shapes.';
-    helpText.minElongation       = 'Lower bound on elongation (major/minor). Enforce cilium-like shapes.';
-    helpText.minEccentricity     = 'Lower bound on region eccentricity (0..1).';
-    helpText.maxEccentricity     = 'Upper bound on region eccentricity (0..1).';
-    helpText.prefilterEnable     = 'If on, a mild pre-filter (e.g., blur/DoG) improves SNR before detection.';
-    helpText.prefilterScalePx    = 'Prefilter scale (px). Typical 1–3 px.';
-    helpText.lineBridgeEnable    = 'If on, connect faint gaps along a line between ciliary segments.';
-    helpText.useGOtsu            = 'Use global Otsu instead of adaptive local thresholding.';
-    helpText.splitOverlapsEnable = 'If on, attempt to split overlapping/merged cilia.';
-    helpText.splitMinCoreDistPx  = 'Min core-to-core distance (px) to allow splitting.';
-    helpText.strengthBridge      = '0–1: how aggressively bridging fills gaps (higher = more bridging).';
-    helpText.strengthShrink      = '0–1: how much to erode after bridging to trim overgrowth (higher = more shrink).';
+% Ensure required/default params
+if ~isfield(params,'useGOtsu'),             params.useGOtsu = false; end
+if ~isfield(params,'splitOverlapsEnable'),  params.splitOverlapsEnable = false; end
+if ~isfield(params,'strengthBridge'),       params.strengthBridge = 0.6; end
+if ~isfield(params,'strengthShrink'),       params.strengthShrink = 0.2; end
+if ~isfield(params,'prefilterEnable'),      params.prefilterEnable = false; end
+if ~isfield(params,'prefilterScalePx'),     params.prefilterScalePx = 2; end
+if ~isfield(params,'lineBridgeEnable'),     params.lineBridgeEnable = true; end
 
-    % ---------- GUI ----------
-    newParams = []; % will be set before uiresume
-    fig = figure('Name','Cilia Detection – Parameter Tuner','NumberTitle','off', ...
-        'MenuBar','none','ToolBar','none','Units','normalized','Position',[0.12 0.12 0.76 0.76], ...
-        'Color',[0.97 0.97 0.97],'KeyPressFcn',@onKey,'CloseRequestFcn',@onClose);
+if ~isfield(params,'windowSize') || ~isscalar(params.windowSize) || ~isfinite(params.windowSize) || params.windowSize<=0
+    params.windowSize = 64;
+end
 
-    % Left column split into 3 grouped panels
-    pLeft  = uipanel(fig,'Title','','Units','normalized','Position',[0.0 0 0.30 1],'BorderType','none');
+% ---------- Help/tooltip text ----------
+helpText = struct();
+helpText.windowSize          = 'Crop size (px) around the seed for preview and detection.';
+helpText.maxArea             = 'Reject detections with area above this (px^2).';
+helpText.minArea             = 'Reject detections with area below this (px^2).';
+helpText.adaptiveSensitivity = '0–1: higher = more sensitive thresholding (keeps more pixels).';
+helpText.minThinness         = 'Lower bound on thinness (4πA/P^2). Filters stubby/round shapes.';
+helpText.minElongation       = 'Lower bound on elongation (major/minor). Enforce cilium-like shapes.';
+helpText.minEccentricity     = 'Lower bound on region eccentricity (0..1).';
+helpText.maxEccentricity     = 'Upper bound on region eccentricity (0..1).';
+helpText.prefilterEnable     = 'If on, a mild pre-filter (e.g., blur/DoG) improves SNR before detection.';
+helpText.prefilterScalePx    = 'Prefilter scale (px). Typical 1–3 px.';
+helpText.lineBridgeEnable    = 'If on, connect faint gaps along a line between ciliary segments.';
+helpText.useGOtsu            = 'Use global Otsu instead of adaptive local thresholding.';
+helpText.splitOverlapsEnable = 'If on, attempt to split overlapping/merged cilia.';
+helpText.splitMinCoreDistPx  = 'Min core-to-core distance (px) to allow splitting.';
+helpText.strengthBridge      = '0–1: how aggressively bridging fills gaps (higher = more bridging).';
+helpText.strengthShrink      = '0–1: how much to erode after bridging to trim overgrowth (higher = more shrink).';
 
-    gDetect  = uipanel(pLeft,'Title','1. Detection & Thresholding','Units','normalized', ...
-                       'Position',[0.05 0.67 0.90 0.30]);
-    gCrit    = uipanel(pLeft,'Title','2. Inclusion / Exclusion Criteria','Units','normalized', ...
-                       'Position',[0.05 0.33 0.90 0.32]);
-    gFilter  = uipanel(pLeft,'Title','3. Filtering & Bridging','Units','normalized', ...
-                       'Position',[0.05 0.02 0.90 0.29]);
+% ---------- GUI ----------
+newParams = []; % will be set before uiresume
+fig = figure('Name','Cilia Detection – Parameter Tuner','NumberTitle','off', ...
+    'MenuBar','none','ToolBar','none','Units','normalized','Position',[0.12 0.12 0.76 0.76], ...
+    'Color',[0.97 0.97 0.97],'KeyPressFcn',@onKey,'CloseRequestFcn',@onClose);
 
-    pTop   = uipanel(fig,'Title','Controls','Units','normalized','Position',[0.30 0.92 0.70 0.08]);
-    pRight = uipanel(fig,'Title','Preview (cropped around seed)','Units','normalized','Position',[0.30 0.0 0.70 0.92]);
+% Left column split into 3 grouped panels
+pLeft  = uipanel(fig,'Title','','Units','normalized','Position',[0.0 0 0.30 1],'BorderType','none');
 
-    % Controls panel (N, load/save/apply)
-    Ndefault = min( max(1, min(4, numel(sampleImgs))), numel(sampleImgs) );
-    uicontrol(pTop,'Style','text','String','N:', 'Units','normalized','Position',[0.01 0.15 0.05 0.7], 'HorizontalAlignment','left');
-    hN = uicontrol(pTop,'Style','edit','String',num2str(Ndefault),'Units','normalized','Position',[0.06 0.2 0.06 0.6],'Callback',@onNChange);
+gDetect  = uipanel(pLeft,'Title','1. Detection & Thresholding','Units','normalized', ...
+    'Position',[0.05 0.67 0.90 0.30]);
+gCrit    = uipanel(pLeft,'Title','2. Inclusion / Exclusion Criteria','Units','normalized', ...
+    'Position',[0.05 0.33 0.90 0.32]);
+gFilter  = uipanel(pLeft,'Title','3. Filtering & Bridging','Units','normalized', ...
+    'Position',[0.05 0.02 0.90 0.29]);
 
-    uicontrol(pTop,'Style','pushbutton','String','Resample','Units','normalized','Position',[0.14 0.15 0.10 0.7],'Callback',@onResample);
-    uicontrol(pTop,'Style','pushbutton','String','Load…','Units','normalized','Position',[0.27 0.15 0.10 0.7],'Callback',@onLoad);
-    uicontrol(pTop,'Style','pushbutton','String','Save…','Units','normalized','Position',[0.39 0.15 0.10 0.7],'Callback',@onSave);
-    uicontrol(pTop,'Style','pushbutton','String','Reset','Units','normalized','Position',[0.73 0.15 0.08 0.7],'Callback',@onReset);
-    uicontrol(pTop,'Style','pushbutton','String','Apply','Units','normalized','Position',[0.82 0.15 0.08 0.7],'Callback',@onApply,'FontWeight','bold');
-    uicontrol(pTop,'Style','pushbutton','String','Cancel','Units','normalized','Position',[0.91 0.15 0.08 0.7],'Callback',@onCancel);
+pTop   = uipanel(fig,'Title','Controls','Units','normalized','Position',[0.30 0.92 0.70 0.08]);
+pRight = uipanel(fig,'Title','Preview (cropped around seed)','Units','normalized','Position',[0.30 0.0 0.70 0.92]);
 
-    % ---------- Param controls (grouped, compact 2-col layout) ----------
-    ctrlHandles = struct(); original = params;
-    
-    % UI scale
-    rowH = 0.065;         % compact rows
-    gap  = 0.015;         % small vertical gap
-    fs   = 9;             % smaller font size
-    
-    % Position helpers for 2 columns (label+edit each)
-    col = struct();
-    col.lbl1 = [0.04  0    0.20 rowH];
-    col.ed1  = [0.25  0    0.18 rowH];
-    col.lbl2 = [0.52  0    0.20 rowH];
-    col.ed2  = [0.73  0    0.18 rowH];
-    
-    % --- 1) Detection & Thresholding group ---------------------------------
-    y = 0.88;
-    
-    % windowSize (row 1, col1)
-    p1 = col.lbl1; p1(2)=y; p2 = col.ed1; p2(2)=y;
-    [ctrlHandles.windowSize, ~] = addNumeric(gDetect,'windowSize',params.windowSize,p1,p2,helpText.windowSize);
-    
-    % Threshold mode popup (row 1, col2)
-    p3 = col.lbl2; p3(2)=y; p4 = col.ed2; p4(2)=y;
-    uicontrol(gDetect,'Style','text','String','thresholdMode:','Units','normalized', ...
-        'Position',p3,'HorizontalAlignment','left','TooltipString','Select thresholding mode','FontSize',fs);
-    ctrlHandles.threshMode = uicontrol(gDetect,'Style','popupmenu','Units','normalized', ...
-        'String',{'Adaptive (local)','Global Otsu'},'Value', 1 + double(params.useGOtsu), ...
-        'Position',p4,'TooltipString',helpText.useGOtsu,'FontSize',fs, ...
-        'Callback',@(src,~)onThreshPopup(src));
-    
-    % adaptiveSensitivity (row 2, col1)
-    y = y - rowH - gap;
-    p1 = col.lbl1; p1(2)=y; p2 = col.ed1; p2(2)=y;
-    [ctrlHandles.adaptiveSensitivity, ~] = addNumeric(gDetect,'adaptiveSensitivity', ...
-        bound01(getfield_def(params,'adaptiveSensitivity',0.5)), p1,p2,helpText.adaptiveSensitivity);
-    set(ctrlHandles.adaptiveSensitivity,'FontSize',fs);
-    
-    % --- 2) Inclusion / Exclusion Criteria ---------------------------------
-    y2 = 0.88;
-    
-    % minArea (r1c1)  /  maxArea (r1c2)
-    p1 = col.lbl1; p1(2)=y2; p2 = col.ed1; p2(2)=y2;
-    [ctrlHandles.minArea, ~] = addNumeric(gCrit,'minArea',getfield_def(params,'minArea',20), p1,p2,helpText.minArea);
-    p3 = col.lbl2; p3(2)=y2; p4 = col.ed2; p4(2)=y2;
-    [ctrlHandles.maxArea, ~] = addNumeric(gCrit,'maxArea',getfield_def(params,'maxArea',5000), p3,p4,helpText.maxArea);
-    
-    % minThinness (r2c1) / minElongation (r2c2)
-    y2 = y2 - rowH - gap;
-    p1 = col.lbl1; p1(2)=y2; p2 = col.ed1; p2(2)=y2;
-    [ctrlHandles.minThinness, ~]   = addNumeric(gCrit,'minThinness',getfield_def(params,'minThinness',0.05), p1,p2,helpText.minThinness);
-    p3 = col.lbl2; p3(2)=y2; p4 = col.ed2; p4(2)=y2;
-    [ctrlHandles.minElongation, ~] = addNumeric(gCrit,'minElongation',getfield_def(params,'minElongation',1.8), p3,p4,helpText.minElongation);
-    
-    % minEcc (r3c1) / maxEcc (r3c2)
-    y2 = y2 - rowH - gap;
-    p1 = col.lbl1; p1(2)=y2; p2 = col.ed1; p2(2)=y2;
-    [ctrlHandles.minEccentricity, ~] = addNumeric(gCrit,'minEccentricity',getfield_def(params,'minEccentricity',0.6), p1,p2,helpText.minEccentricity);
-    p3 = col.lbl2; p3(2)=y2; p4 = col.ed2; p4(2)=y2;
-    [ctrlHandles.maxEccentricity, ~] = addNumeric(gCrit,'maxEccentricity',getfield_def(params,'maxEccentricity',0.999), p3,p4,helpText.maxEccentricity);
-    
-    % --- 3) Filtering & Bridging -------------------------------------------
-    y3 = 0.88;
-    
-    % PrefilterEnable (r1c1 checkbox) + prefilterScalePx (r1c2)
-    pChk = [0.04 y3 0.40 rowH];
-    [ctrlHandles.prefilterEnable, ~] = addCheckbox(gFilter,'prefilterEnable',logical(params.prefilterEnable), pChk, helpText.prefilterEnable, @onParamLogical);
-    set(ctrlHandles.prefilterEnable,'FontSize',fs);
-    p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
-    [ctrlHandles.prefilterScalePx, ~] = addNumeric(gFilter,'prefilterScalePx',params.prefilterScalePx, p3,p4,helpText.prefilterScalePx);
-    
-    % splitOverlapsEnable (r2c1) + splitMinCoreDistPx (r2c2)
-    y3 = y3 - rowH - gap;
-    pChk = [0.04 y3 0.40 rowH];
-    [ctrlHandles.splitOverlapsEnable, ~] = addCheckbox(gFilter,'splitOverlapsEnable',logical(params.splitOverlapsEnable), pChk, helpText.splitOverlapsEnable, @onParamLogical);
-    set(ctrlHandles.splitOverlapsEnable,'FontSize',fs);
-    p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
-    [ctrlHandles.splitMinCoreDistPx, ~]  = addNumeric(gFilter,'splitMinCoreDistPx',getfield_def(params,'splitMinCoreDistPx',3), p3,p4,helpText.splitMinCoreDistPx);
-    
-    % lineBridgeEnable (r3c1) + strengthBridge (r3c2)
-    y3 = y3 - rowH - gap;
-    pChk = [0.04 y3 0.40 rowH];
-    [ctrlHandles.lineBridgeEnable, ~] = addCheckbox(gFilter,'lineBridgeEnable',logical(params.lineBridgeEnable), pChk, helpText.lineBridgeEnable, @onParamLogical);
-    set(ctrlHandles.lineBridgeEnable,'FontSize',fs);
-    p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
-    [ctrlHandles.strengthBridge, ~] = addNumeric(gFilter,'strengthBridge',bound01(params.strengthBridge), p3,p4,helpText.strengthBridge);
-    
-    % strengthShrink (r4c2 only)
-    y3 = y3 - rowH - gap;
-    p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
-    [ctrlHandles.strengthShrink, ~] = addNumeric(gFilter,'strengthShrink',bound01(params.strengthShrink), p3,p4,helpText.strengthShrink);
-    
-    % --- Apply compact font size to all numeric edits/labels in the three panels
-    set(findall(gDetect,'-property','FontSize'),'FontSize',fs);
-    set(findall(gCrit,  '-property','FontSize'),'FontSize',fs);
-    set(findall(gFilter,'-property','FontSize'),'FontSize',fs);
-    
-    % Replace radio-group logic with popup callback
+% Controls panel (N, load/save/apply)
+Ndefault = min( max(0, min(4, numel(sampleImgs))), numel(sampleImgs) ); % allow 0 when no samples
+
+uicontrol(pTop,'Style','text','String','N:', 'Units','normalized','Position',[0.01 0.15 0.05 0.7], 'HorizontalAlignment','left');
+hN = uicontrol(pTop,'Style','edit','String',num2str(Ndefault),'Units','normalized','Position',[0.06 0.2 0.06 0.6],'Callback',@onNChange);
+
+uicontrol(pTop,'Style','pushbutton','String','Resample','Units','normalized','Position',[0.14 0.15 0.10 0.7],'Callback',@onResample);
+uicontrol(pTop,'Style','pushbutton','String','Load…','Units','normalized','Position',[0.27 0.15 0.10 0.7],'Callback',@onLoad);
+uicontrol(pTop,'Style','pushbutton','String','Save…','Units','normalized','Position',[0.39 0.15 0.10 0.7],'Callback',@onSave);
+uicontrol(pTop,'Style','pushbutton','String','Reset','Units','normalized','Position',[0.73 0.15 0.08 0.7],'Callback',@onReset);
+uicontrol(pTop,'Style','pushbutton','String','Apply','Units','normalized','Position',[0.82 0.15 0.08 0.7],'Callback',@onApply,'FontWeight','bold');
+uicontrol(pTop,'Style','pushbutton','String','Cancel','Units','normalized','Position',[0.91 0.15 0.08 0.7],'Callback',@onCancel);
+
+% ---------- Param controls (grouped, compact 2-col layout) ----------
+ctrlHandles = struct(); original = params;
+
+% UI scale
+rowH = 0.065;         % compact rows
+gap  = 0.015;         % small vertical gap
+fs   = 9;             % smaller font size
+
+% Position helpers for 2 columns (label+edit each)
+col = struct();
+col.lbl1 = [0.04  0    0.20 rowH];
+col.ed1  = [0.25  0    0.18 rowH];
+col.lbl2 = [0.52  0    0.20 rowH];
+col.ed2  = [0.73  0    0.18 rowH];
+
+% --- 1) Detection & Thresholding group ---------------------------------
+y = 0.88;
+
+% windowSize (row 1, col1)
+p1 = col.lbl1; p1(2)=y; p2 = col.ed1; p2(2)=y;
+[ctrlHandles.windowSize, ~] = addNumeric(gDetect,'windowSize',params.windowSize,p1,p2,helpText.windowSize);
+
+% Threshold mode popup (row 1, col2)
+p3 = col.lbl2; p3(2)=y; p4 = col.ed2; p4(2)=y;
+uicontrol(gDetect,'Style','text','String','thresholdMode:','Units','normalized', ...
+    'Position',p3,'HorizontalAlignment','left','TooltipString','Select thresholding mode','FontSize',fs);
+ctrlHandles.threshMode = uicontrol(gDetect,'Style','popupmenu','Units','normalized', ...
+    'String',{'Adaptive (local)','Global Otsu'},'Value', 1 + double(params.useGOtsu), ...
+    'Position',p4,'TooltipString',helpText.useGOtsu,'FontSize',fs, ...
+    'Callback',@(src,~)onThreshPopup(src));
+
+% adaptiveSensitivity (row 2, col1)
+y = y - rowH - gap;
+p1 = col.lbl1; p1(2)=y; p2 = col.ed1; p2(2)=y;
+[ctrlHandles.adaptiveSensitivity, ~] = addNumeric(gDetect,'adaptiveSensitivity', ...
+    bound01(getfield_def(params,'adaptiveSensitivity',0.5)), p1,p2,helpText.adaptiveSensitivity);
+set(ctrlHandles.adaptiveSensitivity,'FontSize',fs);
+
+% --- 2) Inclusion / Exclusion Criteria ---------------------------------
+y2 = 0.88;
+
+% minArea (r1c1)  /  maxArea (r1c2)
+p1 = col.lbl1; p1(2)=y2; p2 = col.ed1; p2(2)=y2;
+[ctrlHandles.minArea, ~] = addNumeric(gCrit,'minArea',getfield_def(params,'minArea',20), p1,p2,helpText.minArea);
+p3 = col.lbl2; p3(2)=y2; p4 = col.ed2; p4(2)=y2;
+[ctrlHandles.maxArea, ~] = addNumeric(gCrit,'maxArea',getfield_def(params,'maxArea',5000), p3,p4,helpText.maxArea);
+
+% minThinness (r2c1) / minElongation (r2c2)
+y2 = y2 - rowH - gap;
+p1 = col.lbl1; p1(2)=y2; p2 = col.ed1; p2(2)=y2;
+[ctrlHandles.minThinness, ~]   = addNumeric(gCrit,'minThinness',getfield_def(params,'minThinness',0.05), p1,p2,helpText.minThinness);
+p3 = col.lbl2; p3(2)=y2; p4 = col.ed2; p4(2)=y2;
+[ctrlHandles.minElongation, ~] = addNumeric(gCrit,'minElongation',getfield_def(params,'minElongation',1.8), p3,p4,helpText.minElongation);
+
+% minEcc (r3c1) / maxEcc (r3c2)
+y2 = y2 - rowH - gap;
+p1 = col.lbl1; p1(2)=y2; p2 = col.ed1; p2(2)=y2;
+[ctrlHandles.minEccentricity, ~] = addNumeric(gCrit,'minEccentricity',getfield_def(params,'minEccentricity',0.6), p1,p2,helpText.minEccentricity);
+p3 = col.lbl2; p3(2)=y2; p4 = col.ed2; p4(2)=y2;
+[ctrlHandles.maxEccentricity, ~] = addNumeric(gCrit,'maxEccentricity',getfield_def(params,'maxEccentricity',0.999), p3,p4,helpText.maxEccentricity);
+
+% --- 3) Filtering & Bridging -------------------------------------------
+y3 = 0.88;
+
+% PrefilterEnable (r1c1 checkbox) + prefilterScalePx (r1c2)
+pChk = [0.04 y3 0.40 rowH];
+[ctrlHandles.prefilterEnable, ~] = addCheckbox(gFilter,'prefilterEnable',logical(params.prefilterEnable), pChk, helpText.prefilterEnable, @onParamLogical);
+set(ctrlHandles.prefilterEnable,'FontSize',fs);
+p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
+[ctrlHandles.prefilterScalePx, ~] = addNumeric(gFilter,'prefilterScalePx',params.prefilterScalePx, p3,p4,helpText.prefilterScalePx);
+
+% splitOverlapsEnable (r2c1) + splitMinCoreDistPx (r2c2)
+y3 = y3 - rowH - gap;
+pChk = [0.04 y3 0.40 rowH];
+[ctrlHandles.splitOverlapsEnable, ~] = addCheckbox(gFilter,'splitOverlapsEnable',logical(params.splitOverlapsEnable), pChk, helpText.splitOverlapsEnable, @onParamLogical);
+set(ctrlHandles.splitOverlapsEnable,'FontSize',fs);
+p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
+[ctrlHandles.splitMinCoreDistPx, ~]  = addNumeric(gFilter,'splitMinCoreDistPx',getfield_def(params,'splitMinCoreDistPx',3), p3,p4,helpText.splitMinCoreDistPx);
+
+% lineBridgeEnable (r3c1) + strengthBridge (r3c2)
+y3 = y3 - rowH - gap;
+pChk = [0.04 y3 0.40 rowH];
+[ctrlHandles.lineBridgeEnable, ~] = addCheckbox(gFilter,'lineBridgeEnable',logical(params.lineBridgeEnable), pChk, helpText.lineBridgeEnable, @onParamLogical);
+set(ctrlHandles.lineBridgeEnable,'FontSize',fs);
+p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
+[ctrlHandles.strengthBridge, ~] = addNumeric(gFilter,'strengthBridge',bound01(params.strengthBridge), p3,p4,helpText.strengthBridge);
+
+% strengthShrink (r4c2 only)
+y3 = y3 - rowH - gap;
+p3 = col.lbl2; p3(2)=y3; p4 = col.ed2; p4(2)=y3;
+[ctrlHandles.strengthShrink, ~] = addNumeric(gFilter,'strengthShrink',bound01(params.strengthShrink), p3,p4,helpText.strengthShrink);
+
+% --- Apply compact font size to all numeric edits/labels in the three panels
+set(findall(gDetect,'-property','FontSize'),'FontSize',fs);
+set(findall(gCrit,  '-property','FontSize'),'FontSize',fs);
+set(findall(gFilter,'-property','FontSize'),'FontSize',fs);
+
+% Replace radio-group logic with popup callback
     function onThreshPopup(src)
         val = get(src,'Value'); % 1=Adaptive, 2=GOtsu
         params.useGOtsu = (val==2);
         refreshEnableStates();
         redrawAll();
     end
-    
 
-    % ---------- Preview grid ----------
-    state.allImgs  = sampleImgs; state.allSeeds = sampleSeeds; state.allCh = sampleCh;
-    state.idx      = pickIndices(Ndefault, numel(state.allImgs));
+
+% ---------- Preview grid ----------
+state.allImgs  = sampleImgs; state.allSeeds = sampleSeeds; state.allCh = sampleCh;
+if isempty(state.allImgs)
+    state.idx = zeros(0,1);
+    [ax, imgH, ovlH] = deal(gobjects(0), gobjects(0), cell(0,1));
+    buildEmptyPreviewPanel(pRight);
+else
+    state.idx = pickIndices(Ndefault, numel(state.allImgs));
     [ax, imgH, ovlH] = buildTiledAxes(pRight, numel(state.idx));
     redrawAll();
+end
 
-    % Initial enable/disable based on current params
-    refreshEnableStates();
 
-    % Block until user applies/cancels/closes:
-    uiwait(fig);
-    if isvalid(fig), delete(fig); end
+% Initial enable/disable based on current params
+refreshEnableStates();
 
-    % ======== Callbacks ========
+% Block until user applies/cancels/closes:
+uiwait(fig);
+if isvalid(fig), delete(fig); end
+
+% ======== Callbacks ========
     function onParamNumeric(name, src)
         v = str2double(get(src,'String'));
         if isnan(v), set(src,'String',num2str(params.(name))); return; end
@@ -243,40 +255,80 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
 
 
     function onNChange(src, ~)
-        nTry = round(str2double(get(src,'String'))); if isnan(nTry) || nTry < 1, nTry = numel(state.idx); end
-        nTry = min(nTry, numel(state.allImgs)); state.idx = pickIndices(nTry, numel(state.allImgs));
-        [ax, imgH, ovlH] = buildTiledAxes(pRight, numel(state.idx)); redrawAll();
+        nTry = round(str2double(get(src,'String'))); 
+        if isnan(nTry) || nTry < 0, nTry = numel(state.idx); end
+        nTry = min(nTry, numel(state.allImgs)); 
+        state.idx = pickIndices(nTry, numel(state.allImgs));
+        if isempty(state.idx)
+            buildEmptyPreviewPanel(pRight);
+            [ax, imgH, ovlH] = deal(gobjects(0), gobjects(0), cell(0,1));
+        else
+            [ax, imgH, ovlH] = buildTiledAxes(pRight, numel(state.idx)); 
+            redrawAll();
+        end
     end
 
-    function onResample(~,~), state.idx = pickIndices(numel(state.idx), numel(state.allImgs)); redrawAll(); end
+    function buildEmptyPreviewPanel(parent)
+        delete(allchild(parent));
+        uicontrol(parent,'Style','text','Units','normalized', ...
+            'Position',[0.05 0.40 0.90 0.20], 'String', ...
+            'No preview samples available. You can still Load/Save and Apply parameters.', ...
+            'FontAngle','italic','HorizontalAlignment','center');
+    end
+
+    function onResample(~,~)
+        state.idx = pickIndices(numel(state.idx), numel(state.allImgs));
+        if isempty(state.idx)
+            buildEmptyPreviewPanel(pRight);
+            [ax, imgH, ovlH] = deal(gobjects(0), gobjects(0), cell(0,1));
+        else
+            redrawAll();
+        end
+    end
 
     function onReset(~,~)
         params = original;
-    
-        % Push values back into controls (numeric & logical)
-        setIf(ctrlHandles,'windowSize', params.windowSize);
-        setIf(ctrlHandles,'adaptiveSensitivity', bound01(getfield_def(params,'adaptiveSensitivity',0.5)));
-        setIf(ctrlHandles,'minArea', getfield_def(params,'minArea',20));
-        setIf(ctrlHandles,'maxArea', getfield_def(params,'maxArea',5000));
-        setIf(ctrlHandles,'minThinness', getfield_def(params,'minThinness',0.05));
-        setIf(ctrlHandles,'minElongation', getfield_def(params,'minElongation',1.8));
-        setIf(ctrlHandles,'minEccentricity', getfield_def(params,'minEccentricity',0.6));
-        setIf(ctrlHandles,'maxEccentricity', getfield_def(params,'maxEccentricity',0.999));
-        setIf(ctrlHandles,'prefilterEnable', logical(getfield_def(params,'prefilterEnable',false)));
-        setIf(ctrlHandles,'prefilterScalePx', getfield_def(params,'prefilterScalePx',2));
-        setIf(ctrlHandles,'splitOverlapsEnable', logical(getfield_def(params,'splitOverlapsEnable',false)));
-        setIf(ctrlHandles,'splitMinCoreDistPx', getfield_def(params,'splitMinCoreDistPx',3));
-        setIf(ctrlHandles,'lineBridgeEnable', logical(getfield_def(params,'lineBridgeEnable',true)));
-        setIf(ctrlHandles,'strengthBridge', bound01(getfield_def(params,'strengthBridge',0.6)));
-        setIf(ctrlHandles,'strengthShrink', bound01(getfield_def(params,'strengthShrink',0.2)));
-    
-        % Set threshold popup from params.useGOtsu (1=Adaptive, 2=GOtsu)
-        if isfield(ctrlHandles,'threshMode') && ishghandle(ctrlHandles.threshMode)
-            set(ctrlHandles.threshMode,'Value', 1 + double(params.useGOtsu));
+
+% % %         % Push values back into controls (numeric & logical)
+% % %         setIf(ctrlHandles,'windowSize', params.windowSize);
+% % %         setIf(ctrlHandles,'adaptiveSensitivity', bound01(getfield_def(params,'adaptiveSensitivity',0.5)));
+% % %         setIf(ctrlHandles,'minArea', getfield_def(params,'minArea',20));
+% % %         setIf(ctrlHandles,'maxArea', getfield_def(params,'maxArea',5000));
+% % %         setIf(ctrlHandles,'minThinness', getfield_def(params,'minThinness',0.05));
+% % %         setIf(ctrlHandles,'minElongation', getfield_def(params,'minElongation',1.8));
+% % %         setIf(ctrlHandles,'minEccentricity', getfield_def(params,'minEccentricity',0.6));
+% % %         setIf(ctrlHandles,'maxEccentricity', getfield_def(params,'maxEccentricity',0.999));
+% % %         setIf(ctrlHandles,'prefilterEnable', logical(getfield_def(params,'prefilterEnable',false)));
+% % %         setIf(ctrlHandles,'prefilterScalePx', getfield_def(params,'prefilterScalePx',2));
+% % %         setIf(ctrlHandles,'splitOverlapsEnable', logical(getfield_def(params,'splitOverlapsEnable',false)));
+% % %         setIf(ctrlHandles,'splitMinCoreDistPx', getfield_def(params,'splitMinCoreDistPx',3));
+% % %         setIf(ctrlHandles,'lineBridgeEnable', logical(getfield_def(params,'lineBridgeEnable',true)));
+% % %         setIf(ctrlHandles,'strengthBridge', bound01(getfield_def(params,'strengthBridge',0.6)));
+% % %         setIf(ctrlHandles,'strengthShrink', bound01(getfield_def(params,'strengthShrink',0.2)));
+% % %         % Set threshold popup from params.useGOtsu (1=Adaptive, 2=GOtsu)
+% % %         if isfield(ctrlHandles,'threshMode') && ishghandle(ctrlHandles.threshMode)
+% % %             set(ctrlHandles.threshMode,'Value', 1 + double(params.useGOtsu));
+% % %         end
+
+        try
+            pd = default_params();   % <- your function
+        catch
+            pd = struct();           % be defensive if not on path
         end
     
+        % Overwrite current params with allowed fields from pd
+        for nm = allowList
+            cn = char(nm);
+            if isfield(pd, cn)
+                params.(cn) = pd.(cn);
+            end
+        end
         refreshEnableStates();
-        redrawAll();
+        if isempty(state.allImgs)
+            buildEmptyPreviewPanel(pRight);
+        else
+            redrawAll();
+        end
     end
 
 
@@ -304,12 +356,12 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
 
             % Push to UI
             setIf(ctrlHandles,'windowSize', params.windowSize);
-            
+
             % Set threshold popup from params.useGOtsu (1=Adaptive, 2=GOtsu)
             if isfield(ctrlHandles,'threshMode') && ishghandle(ctrlHandles.threshMode)
                 set(ctrlHandles.threshMode,'Value', 1 + double(params.useGOtsu));
             end
-            
+
             setIf(ctrlHandles,'adaptiveSensitivity', getfield_def(params,'adaptiveSensitivity',0.5));
             setIf(ctrlHandles,'minArea', getfield_def(params,'minArea',20));
             setIf(ctrlHandles,'maxArea', getfield_def(params,'maxArea',5000));
@@ -324,7 +376,7 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
             setIf(ctrlHandles,'lineBridgeEnable', logical(getfield_def(params,'lineBridgeEnable',true)));
             setIf(ctrlHandles,'strengthBridge', getfield_def(params,'strengthBridge',0.6));
             setIf(ctrlHandles,'strengthShrink', getfield_def(params,'strengthShrink',0.2));
-            
+
             refreshEnableStates();
             redrawAll();
 
@@ -349,14 +401,26 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
         end
     end
 
+% %     function onApply(~,~)
+% %         newParams = params;
+% %         if strcmp(get(fig,'WaitStatus'),'waiting'), uiresume(fig); else, delete(fig); end
+% %     end
     function onApply(~,~)
-        newParams = params;
+        newParams = params; 
+        % Save as the new defaults so next time the GUI can preload them
+            cfgDir = './config';
+            if ~isfolder(cfgDir), mkdir(cfgDir); end
+            msg = 'Parameters applied.\nThese will be used as defaults next time you open the GUI.';
+            msgbox(sprintf(msg),'Defaults Updated','help');    
         if strcmp(get(fig,'WaitStatus'),'waiting'), uiresume(fig); else, delete(fig); end
     end
+
+
     function onCancel(~,~)
         newParams = [];
         if strcmp(get(fig,'WaitStatus'),'waiting'), uiresume(fig); else, delete(fig); end
     end
+
     function onClose(~,~), onCancel(); end
 
     function onKey(~, evt)
@@ -366,7 +430,7 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
         end
     end
 
-    % ======== Drawing / helpers ========
+% ======== Drawing / helpers ========
     function refreshEnableStates()
         % Thresholding mode
         isAdaptive = ~params.useGOtsu;
@@ -398,6 +462,7 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
     function idx = pickIndices(n, k), if n>=k, idx=(1:k).'; else, idx=randperm(k,n).'; end, end
 
     function redrawAll()
+        if isempty(state.idx), return; end
         if ~isfield(params,'windowSize') || ~isscalar(params.windowSize) || params.windowSize<=0
             params.windowSize = 64;
             setIf(ctrlHandles,'windowSize', params.windowSize);
@@ -457,7 +522,7 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
         else, error('Unsupported stack format in handles.stack{ch}'); end
     end
 
-    % ---------- tiny utils ----------
+% ---------- tiny utils ----------
     function v = getfield_def(S, name, def), if isfield(S,name), v=S.(name); else, v=def; end, end
     function setIf(H, name, val)
         if isfield(H,name) && ishghandle(H.(name))
@@ -474,23 +539,23 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
 
     function [hEdit, hLbl] = addNumeric(parent, name, val, posLbl, posEdit, tip)
         hLbl  = uicontrol(parent,'Style','text','String',[name ':'],'Units','normalized', ...
-                 'Position',posLbl,'HorizontalAlignment','left','TooltipString',tip);
+            'Position',posLbl,'HorizontalAlignment','left','TooltipString',tip);
         hEdit = uicontrol(parent,'Style','edit','String',num2str(val),'Units','normalized', ...
-                 'Position',posEdit,'BackgroundColor',[1 1 1],'TooltipString',tip, ...
-                 'Callback',@(src,~)onParamNumeric(name,src));
+            'Position',posEdit,'BackgroundColor',[1 1 1],'TooltipString',tip, ...
+            'Callback',@(src,~)onParamNumeric(name,src));
     end
     function [hChk, hLbl] = addCheckbox(parent, name, val, posChk, tip, cb)
         hChk = uicontrol(parent,'Style','checkbox','String',name,'Units','normalized', ...
-               'Position',posChk,'Value',logical(val),'TooltipString',tip, ...
-               'Callback',@(src,~)cb(name,src));
+            'Position',posChk,'Value',logical(val),'TooltipString',tip, ...
+            'Callback',@(src,~)cb(name,src));
         hLbl = []; %#ok<NASGU>
     end
 
     function L = size_or_len(A, dim), s = size(A); if numel(s) < dim, L = 1; else, L = s(dim); end, end
 
     function v = getfield_ifexists(S, names, defaultV)
-    % Return the first existing, non-empty field among `names` from struct S; else defaultV.
-    % names can be a char, string, or cellstr of candidate field names.
+        % Return the first existing, non-empty field among `names` from struct S; else defaultV.
+        % names can be a char, string, or cellstr of candidate field names.
         v = defaultV;
         if ~isstruct(S), return; end
         if ischar(names) || isstring(names)
@@ -509,11 +574,11 @@ function newParams = openCiliaParamTunerFromHandles(currentParams, handles)
     end
     function out = clampIndex(v, vmax, vdefault)
         % Clamp index v to [1..vmax]; if v is empty/non-finite/<1, return vdefault.
-    if isempty(v) || ~isfinite(v) || v < 1
-        out = vdefault;
-    else
-        out = min(max(1, round(v)), vmax);
+        if isempty(v) || ~isfinite(v) || v < 1
+            out = vdefault;
+        else
+            out = min(max(1, round(v)), vmax);
+        end
     end
-end
 
 end

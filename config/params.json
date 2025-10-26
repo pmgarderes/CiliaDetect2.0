@@ -1,7 +1,7 @@
 {
-  "windowSize":100,
-  "maxArea":5000,
-  "minArea":10,
+  "windowSize":150,
+  "maxArea":2000,
+  "minArea":50,
   "adaptiveSensitivity":0.45,
   "minThinness":2,
   "minElongation":2,
@@ -10,12 +10,17 @@
   "prefilterEnable":false,
   "prefilterScalePx":2,
   "lineBridgeEnable":false,
+  "useGOtsu":false,
+  "splitOverlapsEnable":false,
+  "splitMinCoreDistPx":3,
+  "strengthBridge":0.2,
+  "strengthShrink":0.07,
   "maxroiOverlap":0.8,
   "backgroundSpread":12,
   "backgroundPadding":2,
   "tophatRadius":5,
   "meta":{
   "version":1,
-  "last_modified":"2025-10-24 09:45:22"
+  "last_modified":"2025-10-26 00:02:43"
 }
 }
