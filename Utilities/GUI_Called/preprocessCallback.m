@@ -2,7 +2,7 @@ function preprocessCallback(hObject, ~)
     handles = guidata(hObject);
 
     % Pick folder
-    foldername = uigetdir(pwd, 'Select folder with ND2 files to downsample');
+    foldername = uigetdir(pwd, 'Select FOLDER with ND2 files to downsample');
     if isequal(foldername,0)
         updateStatusText(handles.status, '', 'Pre-processing canceled.');
         return;
@@ -36,7 +36,7 @@ function preprocessCallback(hObject, ~)
     updateStatusText(handles.status, msg, foldername);
     % Run batch (just pass the text handle)
     try
-        N = load_bioformats_image_downsampled(handles.workingDir, DSfactor, true, handles.status_Operation);
+        N = load_bioformats_image_downsampled2(handles.workingDir, DSfactor, true, handles.status_Operation);
         
         updateStatusText(handles.status, 'Done.', '');
     catch ME

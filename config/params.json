@@ -1,5 +1,5 @@
 {
-  "windowSize":150,
+  "windowSize":100,
   "maxArea":2000,
   "minArea":50,
   "adaptiveSensitivity":0.45,
@@ -7,8 +7,8 @@
   "minElongation":2,
   "minEccentricity":0.8,
   "maxEccentricity":1,
-  "prefilterEnable":false,
-  "prefilterScalePx":2,
+  "prefilterEnable":true,
+  "prefilterScalePx":1,
   "lineBridgeEnable":false,
   "useGOtsu":false,
   "splitOverlapsEnable":false,
@@ -21,6 +21,6 @@
   "tophatRadius":5,
   "meta":{
   "version":1,
-  "last_modified":"2025-10-26 00:02:43"
+  "last_modified":"2025-10-30 13:51:06"
 }
 }
